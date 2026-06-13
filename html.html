@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Rhafes Laundry – Hotel Laundry Management</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:#F0F4F8;color:#1a2744;min-height:100vh}
+:root{
+  --navy:#0F1B35;--navy2:#162040;--navy3:#1E2D52;
+  --green:#00C896;--green2:#00A87E;
+  --amber:#F59E0B;--red:#EF4444;--blue:#3B82F6;--purple:#8B5CF6;
+  --white:#FFFFFF;--surface:#F8FAFC;--border:#E2E8F0;
+  --text:#1a2744;--muted:#64748B;--light:#94A3B8;
+  --wa:#25D366;
+}
+::-webkit-scrollbar{width:6px}::-webkit-scrollbar-track{background:#f1f1f1}::-webkit-scrollbar-thumb{background:#c1c9d6;border-radius:3px}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes blink{0%,100%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}70%{box-shadow:0 0 0 10px rgba(239,68,68,0)}}
+.fade-in{animation:fadeIn .35s ease both}
+.slide-in{animation:slideIn .3s ease both}
+/* Layout */
+.app-shell{display:flex;min-height:100vh}
+.sidebar{width:260px;background:var(--navy);display:flex;flex-direction:column;flex-shrink:0;position:fixed;top:0;left:0;height:100vh;z-index:100;transition:transform .3s ease}
+.sidebar-logo{padding:24px 24px 18px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sidebar-logo h1{font-size:19px;font-weight:800;color:#fff;letter-spacing:-.3px}
+.sidebar-logo p{font-size:11px;color:rgba(255,255,255,.4);margin-top:2px;text-transform:uppercase;letter-spacing:.5px}
+.sidebar-nav{flex:1;padding:12px 10px;overflow-y:auto}
+.nav-section{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:rgba(255,255,255,.28);padding:12px 12px 5px}
+.nav-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;cursor:pointer;color:rgba(255,255,255,.62);font-size:14px;font-weight:500;margin-bottom:2px;transition:all .2s;user-select:none}
+.nav-item:hover{background:rgba(255,255,255,.08);color:#fff}
+.nav-item.active{background:var(--green);color:#fff}
+.nav-item svg{width:17px;height:17px;flex-shrink:0}
+.sidebar-footer{padding:14px;border-top:1px solid rgba(255,255,255,.08)}
+.user-chip{display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,.07);border-radius:8px}
+.user-avatar{width:34px;height:34px;border-radius:50%;background:var(--green);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;color:#fff;flex-shrink:0}
+.user-name{font-size:13px;font-weight:600;color:#fff}
+.user-role{font-size:11px;color:rgba(255,255,255,.38)}
+.main{flex:1;margin-left:260px;min-height:100vh;display:flex;flex-direction:column}
+.topbar{background:#fff;border-bottom:1px solid var(--border);padding:0 26px;height:62px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
+.topbar-title{font-size:19px;font-weight:700;color:var(--text)}
+.topbar-actions{display:flex;align-items:center;gap:12px}
+.content{padding:26px;flex:1}
+/* Cards */
+.card{background:#fff;border-radius:16px;border:1px solid var(--border);padding:22px;box-shadow:0 1px 3px rgba(0,0,0,.04)}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.grid-4{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+/* Stat cards */
+.stat-card{background:#fff;border-radius:14px;border:1px solid var(--border);padding:18px;display:flex;flex-direction:column;gap:7px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+.stat-icon{width:42px;height:42px;border-radius:11px;display:flex;align-items:center;justify-content:center;margin-bottom:3px}
+.stat-value{font-size:26px;font-weight:800;line-height:1}
+.stat-label{font-size:12px;color:var(--muted);font-weight:500}
+/* Machine cards */
+.machine-card{background:#fff;border-radius:18px;border:2px solid var(--border);padding:22px;transition:all .25s;box-shadow:0 2px 8px rgba(0,0,0,.05);position:relative;overflow:hidden}
+.machine-card.available{border-color:#d1fae5;cursor:pointer}
+.machine-card.busy{border-color:#fee2e2}
+.machine-card.finishing{border-color:#fef3c7}
+.machine-card.pickup{border-color:#fecaca;animation:blink 2s infinite}
+.machine-card.available:hover{box-shadow:0 4px 20px rgba(0,200,150,.15);transform:translateY(-2px)}
+.status-badge{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+.status-badge.available{background:#d1fae5;color:#059669}
+.status-badge.busy{background:#fee2e2;color:#dc2626}
+.status-badge.finishing{background:#fef3c7;color:#d97706}
+.status-badge.pickup{background:#fee2e2;color:#dc2626}
+.status-dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0}
+.status-dot.pulse{animation:pulse 1.4s ease infinite}
+/* Progress ring */
+.progress-ring-container{position:relative;margin:0 auto}
+.progress-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;width:70px}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:10px 18px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;border:none;transition:all .2s;user-select:none;white-space:nowrap;font-family:inherit}
+.btn-lg{padding:14px 26px;font-size:15px;border-radius:12px}
+.btn-sm{padding:7px 13px;font-size:12px;border-radius:8px}
+.btn-xs{padding:5px 10px;font-size:11px;border-radius:7px}
+.btn-primary{background:var(--navy);color:#fff}
+.btn-primary:hover{background:var(--navy2)}
+.btn-green{background:var(--green);color:#fff}
+.btn-green:hover{background:var(--green2)}
+.btn-red{background:var(--red);color:#fff}
+.btn-red:hover{background:#dc2626}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--surface);color:var(--text)}
+.btn-amber{background:var(--amber);color:#fff}
+.btn-amber:hover{background:#d97706}
+.btn-wa{background:var(--wa);color:#fff}
+.btn-wa:hover{background:#1da851}
+.btn-purple{background:var(--purple);color:#fff}
+.btn-purple:hover{background:#7c3aed}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+/* Forms */
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:14px}
+.form-label{font-size:13px;font-weight:600;color:var(--text)}
+.form-input{padding:10px 14px;border-radius:10px;border:1.5px solid var(--border);font-size:14px;font-family:inherit;color:var(--text);background:#fff;transition:border-color .2s;outline:none}
+.form-input:focus{border-color:var(--navy)}
+.form-input::placeholder{color:var(--light)}
+/* Duration grid */
+.dur-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.dur-btn{padding:11px 6px;border:2px solid var(--border);border-radius:10px;text-align:center;cursor:pointer;font-size:13px;font-weight:600;color:var(--muted);background:#fff;transition:all .2s;user-select:none;line-height:1.2}
+.dur-btn:hover{border-color:var(--navy);color:var(--navy)}
+.dur-btn.selected{border-color:var(--navy);background:var(--navy);color:#fff}
+/* Tables */
+.table-wrap{overflow-x:auto;border-radius:12px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse}
+th{background:#f8fafc;padding:11px 14px;text-align:left;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--border)}
+td{padding:12px 14px;font-size:13px;border-bottom:1px solid #f1f5f9;color:var(--text)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:#fafbff}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(15,27,53,.6);z-index:200;display:flex;align-items:center;justify-content:center;padding:14px;backdrop-filter:blur(4px)}
+.modal{background:#fff;border-radius:20px;width:100%;max-width:460px;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:fadeIn .22s ease both;max-height:90vh;overflow-y:auto}
+.modal-wide{max-width:560px}
+.modal-header{padding:22px 22px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.modal-title{font-size:17px;font-weight:700;line-height:1.3}
+.modal-body{padding:18px 22px}
+.modal-footer{padding:0 22px 22px;display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap}
+.close-btn{width:30px;height:30px;border-radius:50%;border:none;background:#f1f5f9;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all .2s;flex-shrink:0}
+.close-btn:hover{background:#e2e8f0}
+/* Toast */
+.toast-container{position:fixed;top:16px;right:16px;z-index:999;display:flex;flex-direction:column;gap:9px;pointer-events:none}
+.toast{background:#fff;border-radius:12px;padding:13px 16px;box-shadow:0 6px 28px rgba(0,0,0,.16);display:flex;align-items:flex-start;gap:11px;max-width:320px;animation:slideIn .28s ease both;border-left:4px solid;pointer-events:all}
+.toast.success{border-color:var(--green)}
+.toast.error{border-color:var(--red)}
+.toast.info{border-color:var(--blue)}
+.toast.warning{border-color:var(--amber)}
+.toast-msg{font-size:13px;font-weight:500;line-height:1.45}
+/* Notif items */
+.notif-dot{width:8px;height:8px;background:var(--red);border-radius:50%;position:absolute;top:2px;right:2px}
+.notif-item{padding:13px 16px;border-bottom:1px solid #f1f5f9;display:flex;gap:11px;align-items:flex-start;cursor:pointer;transition:background .15s}
+.notif-item:hover{background:#f8fafc}
+.notif-item.unread{background:#f0f9ff}
+.notif-item:last-child{border-bottom:none}
+/* Login */
+.login-page{min-height:100vh;display:flex}
+.login-left{flex:1;background:var(--navy);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;position:relative;overflow:hidden}
+.login-left::before{content:'';position:absolute;top:-100px;right:-100px;width:400px;height:400px;border-radius:50%;background:rgba(0,200,150,.07)}
+.login-right{width:460px;background:#fff;display:flex;align-items:center;justify-content:center;padding:40px}
+.mp-card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:12px;padding:13px}
+.mp-card-name{font-size:11px;color:rgba(255,255,255,.45);text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.mp-card-status{font-size:13px;font-weight:600}
+.mp-card-status.avail{color:var(--green)}
+.mp-card-status.busy{color:#fca5a5}
+/* Homepage */
+.homepage{min-height:100vh;background:var(--navy);color:#fff;display:flex;flex-direction:column}
+.hp-nav{padding:18px 36px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,.08)}
+.hp-hero{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:56px 20px}
+.hp-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(0,200,150,.15);border:1px solid rgba(0,200,150,.28);color:var(--green);border-radius:20px;padding:5px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;margin-bottom:22px}
+.hp-title{font-size:clamp(34px,7vw,70px);font-weight:800;line-height:1.06;letter-spacing:-1.5px}
+.hp-title span{color:var(--green)}
+.hp-sub{font-size:17px;color:rgba(255,255,255,.52);margin-top:14px;max-width:480px}
+.hp-machines{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:46px;width:100%;max-width:760px}
+.hp-machine{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.09);border-radius:13px;padding:16px;text-align:center}
+.hp-machine-name{font-size:11px;color:rgba(255,255,255,.42);text-transform:uppercase;letter-spacing:.5px;margin-bottom:7px}
+.hp-footer{padding:24px 36px;border-top:1px solid rgba(255,255,255,.08);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px}
+/* Tabs */
+.tabs{display:flex;gap:3px;background:#f1f5f9;border-radius:12px;padding:4px;margin-bottom:18px}
+.tab{flex:1;text-align:center;padding:8px 12px;border-radius:9px;font-size:13px;font-weight:600;cursor:pointer;color:var(--muted);transition:all .2s;user-select:none}
+.tab.active{background:#fff;color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.08)}
+/* Section */
+.section-title{font-size:21px;font-weight:800;margin-bottom:3px}
+.section-sub{font-size:13px;color:var(--muted);margin-bottom:22px}
+/* Chips */
+.chip{display:inline-flex;align-items:center;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.chip-navy{background:#e8edf7;color:var(--navy)}
+.chip-green{background:#d1fae5;color:#059669}
+.chip-red{background:#fee2e2;color:#dc2626}
+.chip-amber{background:#fef3c7;color:#d97706}
+.chip-purple{background:#ede9fe;color:#7c3aed}
+/* Pickup alert bar */
+.pickup-bar{background:linear-gradient(135deg,#fef2f2,#fff5f5);border:1.5px solid #fecaca;border-radius:14px;padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:16px}
+/* Hamburger */
+.hamburger{display:none;flex-direction:column;gap:5px;cursor:pointer;padding:6px}
+.hamburger span{width:21px;height:2px;background:var(--muted);border-radius:2px;display:block}
+.sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:99}
+/* WhatsApp */
+.wa-preview{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:14px 16px;font-size:13px;color:#166534;line-height:1.6;margin-top:12px;font-style:italic}
+/* Responsive */
+@media(max-width:1100px){.grid-4{grid-template-columns:repeat(2,1fr)}.grid-3{grid-template-columns:repeat(2,1fr)}.hp-machines{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:768px){
+  .sidebar{transform:translateX(-100%)}.sidebar.open{transform:translateX(0)}
+  .sidebar-overlay.open{display:block}.main{margin-left:0}.hamburger{display:flex}
+  .grid-2,.grid-3,.grid-4{grid-template-columns:1fr}.content{padding:14px}.topbar{padding:0 14px}
+  .login-page{flex-direction:column}.login-left{display:none}.login-right{width:100%;padding:28px 20px}
+  .dur-grid{grid-template-columns:repeat(3,1fr)}.hp-nav{padding:14px 18px}
+  .hp-footer{flex-direction:column;text-align:center}.modal-footer{justify-content:stretch}
+  .modal-footer .btn{flex:1}
+}
+@media(max-width:480px){.dur-grid{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState,useEffect,useRef}=React;
+
+// ─── CONSTANTS ────────────────────────────────────────────────────────────────
+const MACHINES=[
+  {id:'wm1',name:'Washing Machine 1',type:'washer',icon:'🫧',num:1},
+  {id:'wm2',name:'Washing Machine 2',type:'washer',icon:'🫧',num:2},
+  {id:'dr1',name:'Dryer 1',type:'dryer',icon:'🌀',num:1},
+  {id:'dr2',name:'Dryer 2',type:'dryer',icon:'🌀',num:2},
+];
+
+const DURATIONS=[
+  {label:'15 min',minutes:15},{label:'30 min',minutes:30},{label:'45 min',minutes:45},
+  {label:'1 hr',minutes:60},{label:'1.5 hrs',minutes:90},{label:'2 hrs',minutes:120},
+  {label:'2.5 hrs',minutes:150},{label:'3 hrs',minutes:180},{label:'3.5 hrs',minutes:210},
+  {label:'4 hrs',minutes:240},{label:'5 hrs',minutes:300},{label:'6 hrs',minutes:360},
+];
+
+const USERS_INIT=[
+  {id:'admin',username:'admin',password:'admin123',name:'Admin User',role:'admin',department:'Management',phone:''},
+];
+
+const LS={
+  get:(k,d)=>{try{const v=localStorage.getItem('rl2_'+k);return v?JSON.parse(v):d}catch{return d}},
+  set:(k,v)=>{try{localStorage.setItem('rl2_'+k,JSON.stringify(v));}catch{}},
+};
+
+const uid=()=>Math.random().toString(36).slice(2,10);
+const fmt=(d)=>{if(!d)return'–';return new Date(d).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});};
+const fmtDate=(d)=>{if(!d)return'–';return new Date(d).toLocaleDateString([],{day:'2-digit',month:'short',year:'numeric'});};
+const fmtDur=(min)=>{if(min>=60){const h=Math.floor(min/60),m=min%60;return m?`${h}h ${m}m`:`${h}h`;}return`${min}m`;};
+const timeLeft=(endTime)=>Math.max(0,Math.floor(((endTime||0)-Date.now())/1000));
+const fmtSecs=(s)=>{const m=Math.floor(s/60);return`${String(m).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;};
+const pct=(endTime,durMs)=>{if(!endTime||!durMs)return 0;return Math.min(100,Math.max(0,((durMs-(endTime-Date.now()))/durMs)*100));};
+const initials=(n)=>n?.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)||'?';
+
+// ─── ICONS ────────────────────────────────────────────────────────────────────
+const I=({n,s=18})=>{
+  const ic={
+    home:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>,
+    machine:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="18" rx="3"/><circle cx="12" cy="13" r="4"/><circle cx="12" cy="13" r="2"/><line x1="7" y1="7" x2="8" y2="7"/><line x1="10" y1="7" x2="11" y2="7"/></svg>,
+    history:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12,6 12,12 16,14"/></svg>,
+    bell:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>,
+    users:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>,
+    settings:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2m0 16v2m7.07-5.07l-1.41-1.41M5.34 17.66l1.41-1.41M22 12h-2M4 12H2"/></svg>,
+    logout:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16,17 21,12 16,7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>,
+    check:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="20,6 9,17 4,12"/></svg>,
+    x:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+    plus:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+    edit:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>,
+    trash:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="3,6 5,6 21,6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6m4-6v6"/><path d="M9 6V4h6v2"/></svg>,
+    download:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7,10 12,15 17,10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+    search:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>,
+    key:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>,
+    chart:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/></svg>,
+    info:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>,
+    phone:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.81a19.79 19.79 0 01-3.07-8.63A2 2 0 012 0h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.09 7.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 14.92z"/></svg>,
+    msg:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>,
+    shirt:<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.57a1 1 0 00.99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.57a2 2 0 00-1.34-2.23z"/></svg>,
+    wa:<svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>,
+  };
+  return <span style={{display:'inline-flex',width:s,height:s,flexShrink:0}}>{ic[n]||null}</span>;
+};
+
+// ─── TOAST ────────────────────────────────────────────────────────────────────
+let _addToast=null;
+const ToastContainer=()=>{
+  const[toasts,set]=useState([]);
+  _addToast=(msg,type='info')=>{const id=uid();set(p=>[...p,{id,msg,type}]);setTimeout(()=>set(p=>p.filter(t=>t.id!==id)),4500);};
+  const cols={success:'#00C896',error:'#EF4444',info:'#3B82F6',warning:'#F59E0B'};
+  return <div className="toast-container">{toasts.map(t=><div key={t.id} className={`toast ${t.type}`}><span style={{color:cols[t.type],flexShrink:0}}><I n={t.type==='success'?'check':t.type==='error'?'x':'bell'} s={17}/></span><span className="toast-msg">{t.msg}</span></div>)}</div>;
+};
+const toast=(m,t)=>_addToast&&_addToast(m,t);
+
+// ─── APP ──────────────────────────────────────────────────────────────────────
+const App=()=>{
+  const[page,setPage]=useState('home');
+  const[user,setUser]=useState(()=>LS.get('user',null));
+  const[users,setUsers]=useState(()=>LS.get('users',USERS_INIT));
+  const[sessions,setSessions]=useState(()=>LS.get('sessions',{}));
+  const[history,setHistory]=useState(()=>LS.get('history',[]));
+  const[notifs,setNotifs]=useState(()=>LS.get('notifs',[]));
+  const[modal,setModal]=useState(null);
+  const[sidebarOpen,setSidebarOpen]=useState(false);
+  const[tick,setTick]=useState(0);
+  // reminder tracker: {machineId: lastReminderTime}
+  const remindersRef=useRef(LS.get('reminders',{}));
+
+  useEffect(()=>LS.set('users',users),[users]);
+  useEffect(()=>LS.set('sessions',sessions),[sessions]);
+  useEffect(()=>LS.set('history',history),[history]);
+  useEffect(()=>LS.set('notifs',notifs),[notifs]);
+  useEffect(()=>{if(user)LS.set('user',user);},[user]);
+
+  // 1-second tick
+  useEffect(()=>{const t=setInterval(()=>setTick(p=>p+1),1000);return()=>clearInterval(t);},[]);
+
+  // Check finishes & send reminders every 5 min
+  useEffect(()=>{
+    const now=Date.now();
+    Object.entries(sessions).forEach(([mid,s])=>{
+      if(!s)return;
+      const secs=timeLeft(s.endTime);
+      // Just finished → first notification
+      if(secs===0&&!s.notified){
+        setSessions(p=>({...p,[mid]:{...s,notified:true,status:'pickup'}}));
+        const n={id:uid(),userId:s.userId,machineId:mid,msg:`🔔 Your laundry on ${s.machineName} is done! Please collect your clothes.`,time:now,read:false,type:'finish'};
+        setNotifs(p=>[n,...p]);
+        if(s.userId===user?.id)toast(n.msg,'info');
+        remindersRef.current={...remindersRef.current,[mid]:now};
+        LS.set('reminders',remindersRef.current);
+      }
+      // Reminder every 5 min for pickup status
+      if(s.status==='pickup'&&secs===0){
+        const lastR=remindersRef.current[mid]||0;
+        if(now-lastR>=300000){
+          const n={id:uid(),userId:s.userId,machineId:mid,msg:`⏰ Reminder: Your clothes on ${s.machineName} are still waiting to be collected.`,time:now,read:false,type:'reminder'};
+          setNotifs(p=>[n,...p]);
+          if(s.userId===user?.id)toast(n.msg,'warning');
+          remindersRef.current={...remindersRef.current,[mid]:now};
+          LS.set('reminders',remindersRef.current);
+        }
+      }
+    });
+  },[tick]);
+
+  const myNotifs=notifs.filter(n=>n.userId===user?.id);
+  const unread=myNotifs.filter(n=>!n.read).length;
+
+  const login=(un,pw)=>{
+    const u=users.find(u=>u.username===un&&u.password===pw);
+    if(u){setUser(u);setPage('dashboard');toast(`Welcome, ${u.name.split(' ')[0]}!`,'success');return true;}
+    return false;
+  };
+  const logout=()=>{setUser(null);setPage('home');LS.set('user',null);setSidebarOpen(false);};
+  const startMachine=(mid,mname,durMin)=>{
+    const now=Date.now();
+    const s={userId:user.id,userName:user.name,userPhone:user.phone||'',machineName:mname,startTime:now,endTime:now+durMin*60000,durationMin:durMin,durationMs:durMin*60000,notified:false,status:'busy'};
+    setSessions(p=>({...p,[mid]:s}));
+    setHistory(p=>[{id:uid(),userId:user.id,userName:user.name,machineId:mid,machineName:mname,startTime:now,endTime:now+durMin*60000,durationMin:durMin,date:new Date().toISOString()},...p]);
+    toast(`${mname} started! ${fmtDur(durMin)} cycle.`,'success');
+  };
+  const collectClothes=(mid)=>{
+    const s=sessions[mid];
+    setSessions(p=>{const n={...p};delete n[mid];return n;});
+    const rem={...remindersRef.current};delete rem[mid];remindersRef.current=rem;LS.set('reminders',rem);
+    toast('Clothes collected — machine is now available.','success');
+    // mark related notifs read
+    if(s)setNotifs(p=>p.map(n=>n.machineId===mid&&n.userId===s.userId?{...n,read:true}:n));
+  };
+  const addUser=(u)=>{setUsers(p=>[...p,{...u,id:uid(),role:'employee'}]);toast('Account created.','success');};
+  const editUser=(id,data)=>{
+    setUsers(p=>p.map(u=>u.id===id?{...u,...data}:u));
+    if(user?.id===id)setUser(u=>({...u,...data}));
+    toast('Account updated.','success');
+  };
+  const deleteUser=(id)=>{setUsers(p=>p.filter(u=>u.id!==id));toast('Account deleted.','info');};
+  const changePassword=(id,pw)=>{setUsers(p=>p.map(u=>u.id===id?{...u,password:pw}:u));if(user?.id===id)setUser(u=>({...u,password:pw}));toast('Password updated.','success');};
+  const markAllRead=()=>setNotifs(p=>p.map(n=>n.userId===user?.id?{...n,read:true}:n));
+  const deleteNotif=(id)=>setNotifs(p=>p.filter(n=>n.id!==id));
+  const clearMyNotifs=()=>setNotifs(p=>p.filter(n=>n.userId!==user?.id));
+  const deleteHistory=(id)=>setHistory(p=>p.filter(h=>h.id!==id));
+  const clearAllHistory=()=>setHistory([]);
+
+  const ctx={page,setPage,user,users,sessions,history,notifs,myNotifs,unread,tick,modal,setModal,
+    login,logout,startMachine,collectClothes,addUser,editUser,deleteUser,changePassword,
+    markAllRead,deleteNotif,clearMyNotifs,deleteHistory,clearAllHistory};
+
+  if(page==='home')return <><ToastContainer/><HomePage ctx={ctx}/></>;
+  if(!user)return <><ToastContainer/><LoginPage ctx={ctx}/></>;
+
+  return(
+    <>
+      <ToastContainer/>
+      <div className="app-shell">
+        <div className={`sidebar-overlay${sidebarOpen?' open':''}`} onClick={()=>setSidebarOpen(false)}/>
+        <Sidebar ctx={ctx} open={sidebarOpen} onClose={()=>setSidebarOpen(false)}/>
+        <div className="main">
+          <Topbar ctx={ctx} onMenu={()=>setSidebarOpen(true)}/>
+          <div className="content fade-in" key={page}>
+            {page==='dashboard'&&<DashboardPage ctx={ctx}/>}
+            {page==='machines'&&<MachinesPage ctx={ctx}/>}
+            {page==='history'&&<HistoryPage ctx={ctx}/>}
+            {page==='notifications'&&<NotificationsPage ctx={ctx}/>}
+            {page==='profile'&&<ProfilePage ctx={ctx}/>}
+            {page==='admin-users'&&<AdminUsersPage ctx={ctx}/>}
+            {page==='admin-dash'&&<AdminDashPage ctx={ctx}/>}
+          </div>
+        </div>
+        {modal&&<ModalRouter ctx={ctx}/>}
+      </div>
+    </>
+  );
+};
+
+// ─── HOMEPAGE ─────────────────────────────────────────────────────────────────
+const HomePage=({ctx})=>{
+  const{sessions,tick}=ctx;
+  const ms=MACHINES.map(m=>{const s=sessions[m.id];const secs=s?timeLeft(s.endTime):0;return{...m,status:!s?'available':secs<=0?'pickup':'busy',user:s?.userName};});
+  return(
+    <div className="homepage">
+      <nav className="hp-nav">
+        <div style={{display:'flex',alignItems:'center',gap:11}}>
+          <div style={{width:36,height:36,background:'var(--green)',borderRadius:10,display:'flex',alignItems:'center',justifyContent:'center',fontSize:18}}>🫧</div>
+          <div><div style={{fontSize:15,fontWeight:800,color:'#fff'}}>Rhafes Laundry</div><div style={{fontSize:10,color:'rgba(255,255,255,.38)',textTransform:'uppercase',letterSpacing:.5}}>Hotel Management</div></div>
+        </div>
+        <button className="btn btn-green" onClick={()=>ctx.setPage('login')}>Staff Login</button>
+      </nav>
+      <div className="hp-hero">
+        <div className="hp-badge"><span style={{width:6,height:6,borderRadius:'50%',background:'var(--green)',display:'inline-block'}}/>Live Machine Status</div>
+        <h1 className="hp-title">Hotel Laundry<br/>Made <span>Simple</span></h1>
+        <p className="hp-sub">Real-time visibility into every machine. No more guessing who's using what.</p>
+        <div className="hp-machines">
+          {ms.map(m=>(
+            <div key={m.id} className="hp-machine">
+              <div className="hp-machine-name">{m.name}</div>
+              <div style={{fontSize:13,fontWeight:700,color:m.status==='available'?'var(--green)':m.status==='pickup'?'#fca5a5':'#fca5a5'}}>
+                {m.status==='available'?'Available':m.status==='pickup'?'Awaiting Pickup':'In Use'}
+              </div>
+              {m.user&&<div style={{fontSize:11,color:'rgba(255,255,255,.28)',marginTop:3}}>{m.user}</div>}
+            </div>
+          ))}
+        </div>
+        <button className="btn btn-green btn-lg" style={{marginTop:34}} onClick={()=>ctx.setPage('login')}><I n="machine"/>Access Dashboard</button>
+      </div>
+      <footer className="hp-footer">
+        <div style={{color:'rgba(255,255,255,.32)',fontSize:13}}>Powered by <strong style={{color:'rgba(255,255,255,.55)'}}>Rhafes Laundry</strong></div>
+        <div style={{display:'flex',gap:18,fontSize:13,color:'rgba(255,255,255,.38)',flexWrap:'wrap'}}>
+          <span>📞 50097720</span><span>✉ soufiane@rhafes.com</span>
+        </div>
+      </footer>
+    </div>
+  );
+};
+
+// ─── LOGIN ────────────────────────────────────────────────────────────────────
+const LoginPage=({ctx})=>{
+  const[un,setUn]=useState('');const[pw,setPw]=useState('');const[err,setErr]=useState('');
+  const sub=()=>{if(!ctx.login(un,pw)){setErr('Invalid username or password.');setPw('');}};
+  return(
+    <div className="login-page">
+      <div className="login-left">
+        <div style={{position:'relative',zIndex:1,textAlign:'center',color:'#fff'}}>
+          <div style={{width:68,height:68,background:'var(--green)',borderRadius:20,display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 24px',fontSize:30,boxShadow:'0 8px 28px rgba(0,200,150,.3)'}}>🫧</div>
+          <h1 style={{fontSize:30,fontWeight:800,letterSpacing:-1}}>Rhafes Laundry</h1>
+          <p style={{fontSize:13,color:'rgba(255,255,255,.48)',marginTop:7}}>Hotel Laundry Management System</p>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,marginTop:32,maxWidth:320,margin:'32px auto 0'}}>
+            {MACHINES.map(m=>(
+              <div key={m.id} className="mp-card">
+                <div className="mp-card-name">{m.name}</div>
+                <div className={`mp-card-status ${ctx.sessions[m.id]?'busy':'avail'}`}>{ctx.sessions[m.id]?'In Use':'Available'}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="login-right">
+        <div style={{width:'100%',maxWidth:340}}>
+          <h2 style={{fontSize:24,fontWeight:800,marginBottom:5}}>Welcome back</h2>
+          <p style={{color:'var(--muted)',fontSize:13,marginBottom:24}}>Sign in to your staff account</p>
+          {err&&<div style={{background:'#fee2e2',color:'#dc2626',padding:'10px 13px',borderRadius:10,marginBottom:14,fontSize:13}}>{err}</div>}
+          <div className="form-group"><label className="form-label">Username</label>
+            <input className="form-input" placeholder="Enter username" value={un} onChange={e=>setUn(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sub()}/>
+          </div>
+          <div className="form-group"><label className="form-label">Password</label>
+            <input className="form-input" type="password" placeholder="Enter password" value={pw} onChange={e=>setPw(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sub()}/>
+          </div>
+          <button className="btn btn-primary btn-lg" style={{width:'100%',marginTop:4}} onClick={sub}>Sign In</button>
+          <div style={{textAlign:'center',marginTop:18,fontSize:13,color:'var(--muted)'}}>
+            <a href="#" onClick={e=>{e.preventDefault();ctx.setPage('home');}} style={{color:'var(--navy)',fontWeight:600}}>← Back to homepage</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── SIDEBAR ──────────────────────────────────────────────────────────────────
+const Sidebar=({ctx,open,onClose})=>{
+  const{user,page,unread}=ctx;
+  const go=(p)=>{ctx.setPage(p);onClose();};
+  const isAdmin=user?.role==='admin';
+  return(
+    <div className={`sidebar${open?' open':''}`}>
+      <div className="sidebar-logo"><h1>🫧 Rhafes Laundry</h1><p>Hotel Laundry System</p></div>
+      <nav className="sidebar-nav">
+        {isAdmin&&<>
+          <div className="nav-section">Admin</div>
+          <div className={`nav-item${page==='admin-dash'?' active':''}`} onClick={()=>go('admin-dash')}><I n="chart"/>Admin Dashboard</div>
+          <div className={`nav-item${page==='admin-users'?' active':''}`} onClick={()=>go('admin-users')}><I n="users"/>User Management</div>
+        </>}
+        <div className="nav-section">Main</div>
+        <div className={`nav-item${page==='dashboard'?' active':''}`} onClick={()=>go('dashboard')}><I n="home"/>Dashboard</div>
+        <div className={`nav-item${page==='machines'?' active':''}`} onClick={()=>go('machines')}><I n="machine"/>Machines</div>
+        <div className={`nav-item${page==='history'?' active':''}`} onClick={()=>go('history')}><I n="history"/>Activity History</div>
+        <div className={`nav-item${page==='notifications'?' active':''}`} onClick={()=>go('notifications')} style={{position:'relative'}}>
+          <I n="bell"/>Notifications
+          {unread>0&&<span style={{background:'var(--red)',color:'#fff',fontSize:11,fontWeight:700,borderRadius:20,padding:'1px 7px',marginLeft:'auto'}}>{unread}</span>}
+        </div>
+        <div className="nav-section">Account</div>
+        <div className={`nav-item${page==='profile'?' active':''}`} onClick={()=>go('profile')}><I n="settings"/>Profile & Settings</div>
+      </nav>
+      <div className="sidebar-footer">
+        <div className="user-chip">
+          <div className="user-avatar">{initials(user?.name)}</div>
+          <div style={{flex:1,minWidth:0}}>
+            <div className="user-name" style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{user?.name}</div>
+            <div className="user-role">{user?.role==='admin'?'Administrator':'Employee'}</div>
+          </div>
+          <button style={{background:'none',border:'none',cursor:'pointer',color:'rgba(255,255,255,.38)',padding:4}} onClick={ctx.logout}><I n="logout" s={16}/></button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── TOPBAR ──────────────────────────────────────────────────────────────────
+const Topbar=({ctx,onMenu})=>{
+  const titles={dashboard:'Dashboard',machines:'Machines',history:'Activity History',notifications:'Notifications',profile:'Profile','admin-users':'User Management','admin-dash':'Admin Dashboard'};
+  return(
+    <div className="topbar">
+      <div style={{display:'flex',alignItems:'center',gap:13}}>
+        <div className="hamburger" onClick={onMenu}><span/><span/><span/></div>
+        <span className="topbar-title">{titles[ctx.page]||''}</span>
+      </div>
+      <div className="topbar-actions">
+        <div style={{position:'relative',cursor:'pointer'}} onClick={()=>ctx.setPage('notifications')}>
+          <I n="bell" s={21}/>
+          {ctx.unread>0&&<span className="notif-dot"/>}
+        </div>
+        <div className="user-avatar" style={{width:35,height:35,fontSize:13,cursor:'pointer'}} onClick={()=>ctx.setPage('profile')}>{initials(ctx.user?.name)}</div>
+      </div>
+    </div>
+  );
+};
+
+// ─── PROGRESS RING ─────────────────────────────────────────────────────────────
+const Ring=({p,color,size=100})=>{
+  const r=40,circ=2*Math.PI*r,off=circ-(p/100)*circ;
+  return(
+    <svg width={size} height={size} viewBox="0 0 100 100" style={{transform:'rotate(-90deg)'}}>
+      <circle cx="50" cy="50" r={r} fill="none" stroke="#f1f5f9" strokeWidth="9"/>
+      <circle cx="50" cy="50" r={r} fill="none" stroke={color} strokeWidth="9" strokeLinecap="round"
+        strokeDasharray={circ} strokeDashoffset={off} style={{transition:'stroke-dashoffset .5s ease'}}/>
+    </svg>
+  );
+};
+
+// ─── WHATSAPP HELPER ──────────────────────────────────────────────────────────
+const waMsg=(userName)=>`Hello ${userName}, I hope you are doing well. Your laundry cycle appears to be completed. I would like to use the machine. Could you please collect your clothes when possible? Thank you.`;
+const openWA=(phone,name)=>{
+  const msg=encodeURIComponent(waMsg(name));
+  const num=phone?.replace(/\D/g,'');
+  if(num)window.open(`https://wa.me/${num}?text=${msg}`,'_blank');
+  else window.open(`https://wa.me/?text=${msg}`,'_blank');
+};
+
+// ─── MACHINE CARD ─────────────────────────────────────────────────────────────
+const MachineCard=({machine,session,tick,onStart,onCollect,currentUser,onContact})=>{
+  const secs=session?timeLeft(session.endTime):0;
+  const isPickup=session&&(session.status==='pickup'||secs<=0);
+  const isFinishing=session&&!isPickup&&secs<=300;
+  const sk=!session?'available':isPickup?'pickup':isFinishing?'finishing':'busy';
+  const color=sk==='available'?'#00C896':sk==='pickup'?'#EF4444':sk==='finishing'?'#F59E0B':'#EF4444';
+  const p=session?pct(session.endTime,session.durationMs):0;
+  const isMySession=session&&session.userId===currentUser?.id;
+  const isAdmin=currentUser?.role==='admin';
+  const canCollect=isMySession||isAdmin;
+
+  return(
+    <div className={`machine-card ${sk}`}>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:14}}>
+        <div>
+          <div style={{fontSize:11,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.5,marginBottom:3}}>{machine.type==='washer'?'Washer':'Dryer'} · #{machine.num}</div>
+          <div style={{fontSize:16,fontWeight:700}}>{machine.name}</div>
+        </div>
+        <span className={`status-badge ${sk}`}>
+          <span className={`status-dot${sk!=='available'?' pulse':''}`}/>
+          {sk==='available'?'Available':sk==='pickup'?'Awaiting Pickup':sk==='finishing'?'Finishing':'In Use'}
+        </span>
+      </div>
+
+      {session?(
+        <>
+          {isPickup&&(
+            <div style={{background:'#fef2f2',border:'1px solid #fecaca',borderRadius:11,padding:'10px 13px',marginBottom:12,fontSize:13,color:'#dc2626',fontWeight:500,textAlign:'center'}}>
+              🔔 Cycle complete — please collect clothes
+            </div>
+          )}
+          <div style={{position:'relative',width:96,height:96,margin:'0 auto 14px'}}>
+            <Ring p={p} color={color} size={96}/>
+            <div style={{position:'absolute',top:'50%',left:'50%',transform:'translate(-50%,-50%)',textAlign:'center',width:66}}>
+              <div style={{fontSize:isPickup?13:15,fontWeight:800,color,lineHeight:1}}>{isPickup?'Done':fmtSecs(secs)}</div>
+              <div style={{fontSize:10,color:'var(--muted)',marginTop:1}}>{isPickup?'collect':'left'}</div>
+            </div>
+          </div>
+
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:7,fontSize:12,marginBottom:14}}>
+            <div style={{background:'var(--surface)',borderRadius:9,padding:'9px 11px'}}>
+              <div style={{color:'var(--muted)',marginBottom:2}}>User</div>
+              <div style={{fontWeight:700,fontSize:13,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{session.userName}</div>
+            </div>
+            <div style={{background:'var(--surface)',borderRadius:9,padding:'9px 11px'}}>
+              <div style={{color:'var(--muted)',marginBottom:2}}>Duration</div>
+              <div style={{fontWeight:700,fontSize:13}}>{fmtDur(session.durationMin)}</div>
+            </div>
+            <div style={{background:'var(--surface)',borderRadius:9,padding:'9px 11px'}}>
+              <div style={{color:'var(--muted)',marginBottom:2}}>Started</div>
+              <div style={{fontWeight:700,fontSize:13}}>{fmt(session.startTime)}</div>
+            </div>
+            <div style={{background:'var(--surface)',borderRadius:9,padding:'9px 11px'}}>
+              <div style={{color:'var(--muted)',marginBottom:2}}>Ends at</div>
+              <div style={{fontWeight:700,fontSize:13,color:isPickup?'var(--red)':'inherit'}}>{fmt(session.endTime)}</div>
+            </div>
+          </div>
+
+          <div style={{display:'flex',flexDirection:'column',gap:7}}>
+            {canCollect&&(
+              <button className="btn btn-green" style={{width:'100%'}} onClick={()=>onCollect(machine.id)}>
+                <I n="shirt" s={16}/>Clothes Collected ✓
+              </button>
+            )}
+            {!isMySession&&isPickup&&(
+              <button className="btn btn-wa" style={{width:'100%'}} onClick={()=>onContact(session)}>
+                <I n="wa" s={16}/>Notify via WhatsApp
+              </button>
+            )}
+            {!isMySession&&isPickup&&!session.userPhone&&(
+              <button className="btn btn-ghost btn-sm" style={{width:'100%'}} onClick={()=>onContact(session)}>
+                <I n="msg" s={14}/>Contact User
+              </button>
+            )}
+          </div>
+        </>
+      ):(
+        <div style={{textAlign:'center',padding:'20px 0'}}>
+          <div style={{fontSize:34,marginBottom:8}}>{machine.icon}</div>
+          <div style={{fontSize:13,color:'var(--muted)',marginBottom:14}}>Available — tap to start</div>
+          <button className="btn btn-green" style={{width:'100%'}} onClick={onStart}><I n="plus" s={16}/>Start Cycle</button>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+const DashboardPage=({ctx})=>{
+  const{sessions,history,users,tick,user,setModal}=ctx;
+  const active=Object.values(sessions).filter(Boolean);
+  const pickupNeeded=active.filter(s=>s.status==='pickup'||timeLeft(s.endTime)===0);
+  const todayH=history.filter(h=>new Date(h.date).toDateString()===new Date().toDateString());
+
+  return(
+    <div>
+      <div className="section-title">Good {new Date().getHours()<12?'morning':new Date().getHours()<18?'afternoon':'evening'}, {user.name.split(' ')[0]} 👋</div>
+      <div className="section-sub">Live laundry room status</div>
+
+      {pickupNeeded.length>0&&(
+        <div className="pickup-bar" style={{marginBottom:20}}>
+          <span style={{fontSize:22}}>⚠️</span>
+          <div>
+            <div style={{fontSize:14,fontWeight:700,color:'#dc2626'}}>Clothes awaiting pickup</div>
+            <div style={{fontSize:13,color:'#7f1d1d',marginTop:2}}>{pickupNeeded.map(s=>s.machineName).join(', ')} — please collect or notify the user</div>
+          </div>
+        </div>
+      )}
+
+      <div className="grid-4" style={{marginBottom:22}}>
+        {[
+          {l:'Available',v:4-active.length,icon:'check',c:'#00C896',bg:'#d1fae5'},
+          {l:'In Use',v:active.filter(s=>s.status!=='pickup'&&timeLeft(s.endTime)>0).length,icon:'machine',c:'#EF4444',bg:'#fee2e2'},
+          {l:'Awaiting Pickup',v:pickupNeeded.length,icon:'shirt',c:'#F59E0B',bg:'#fef3c7'},
+          {l:"Today's Cycles",v:todayH.length,icon:'history',c:'#3B82F6',bg:'#dbeafe'},
+        ].map(s=>(
+          <div key={s.l} className="stat-card">
+            <div className="stat-icon" style={{background:s.bg,color:s.c}}><I n={s.icon}/></div>
+            <div className="stat-value" style={{color:s.c}}>{s.v}</div>
+            <div className="stat-label">{s.l}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{marginBottom:22}}>
+        <h3 style={{fontSize:15,fontWeight:700,marginBottom:14}}>Live Machine Status</h3>
+        <div className="grid-2">
+          {MACHINES.map(m=>(
+            <MachineCard key={m.id} machine={m} session={sessions[m.id]} tick={tick} currentUser={user}
+              onStart={()=>setModal({type:'start',machine:m})}
+              onCollect={ctx.collectClothes}
+              onContact={(s)=>setModal({type:'contact',session:s,machine:m})}/>
+          ))}
+        </div>
+      </div>
+
+      <div className="card">
+        <h3 style={{fontSize:15,fontWeight:700,marginBottom:14}}>Recent Activity</h3>
+        {history.slice(0,5).length?(
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            {history.slice(0,5).map(h=>(
+              <div key={h.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 13px',background:'var(--surface)',borderRadius:10}}>
+                <div className="user-avatar" style={{width:32,height:32,fontSize:12,background:'var(--navy3)'}}>{initials(h.userName)}</div>
+                <div style={{flex:1,minWidth:0}}>
+                  <div style={{fontSize:13,fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{h.userName}</div>
+                  <div style={{fontSize:12,color:'var(--muted)'}}>{h.machineName} · {fmtDur(h.durationMin)}</div>
+                </div>
+                <div style={{fontSize:11,color:'var(--muted)',flexShrink:0}}>{fmt(h.startTime)}</div>
+              </div>
+            ))}
+          </div>
+        ):<div style={{textAlign:'center',color:'var(--muted)',padding:'20px 0',fontSize:13}}>No activity yet</div>}
+      </div>
+    </div>
+  );
+};
+
+// ─── MACHINES PAGE ────────────────────────────────────────────────────────────
+const MachinesPage=({ctx})=>{
+  const{sessions,tick,user,setModal}=ctx;
+  return(
+    <div>
+      <div className="section-title">Laundry Machines</div>
+      <div className="section-sub">Select an available machine to start your cycle</div>
+      <div className="grid-2">
+        {MACHINES.map(m=>(
+          <MachineCard key={m.id} machine={m} session={sessions[m.id]} tick={tick} currentUser={user}
+            onStart={()=>setModal({type:'start',machine:m})}
+            onCollect={ctx.collectClothes}
+            onContact={(s)=>setModal({type:'contact',session:s,machine:m})}/>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ─── HISTORY PAGE ────────────────────────────────────────────────────────────
+const HistoryPage=({ctx})=>{
+  const{history,user}=ctx;
+  const[q,setQ]=useState('');const[mf,setMf]=useState('all');
+  const filtered=history.filter(h=>{
+    const ms=!q||h.userName.toLowerCase().includes(q.toLowerCase())||h.machineName.toLowerCase().includes(q.toLowerCase());
+    const mm=mf==='all'||h.machineId===mf;
+    return ms&&mm;
+  });
+  const exportCSV=()=>{
+    const rows=[['User','Machine','Start','End','Duration','Date'],...filtered.map(h=>[h.userName,h.machineName,fmt(h.startTime),fmt(h.endTime),fmtDur(h.durationMin),fmtDate(h.date)])];
+    const a=document.createElement('a');a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(rows.map(r=>r.join(',')).join('\n'));a.download='rhafes-history.csv';a.click();
+    toast('Exported!','success');
+  };
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:10,marginBottom:18}}>
+        <div><div className="section-title">Activity History</div><div className="section-sub" style={{marginBottom:0}}>Complete log of all cycles</div></div>
+        <div style={{display:'flex',gap:8}}>
+          {user?.role==='admin'&&<button className="btn btn-ghost btn-sm" onClick={()=>ctx.clearAllHistory()}><I n="trash" s={14}/>Clear All</button>}
+          <button className="btn btn-ghost btn-sm" onClick={exportCSV}><I n="download" s={14}/>Export CSV</button>
+        </div>
+      </div>
+      <div style={{display:'flex',gap:9,marginBottom:14,flexWrap:'wrap'}}>
+        <div style={{position:'relative',flex:1,minWidth:180}}>
+          <span style={{position:'absolute',left:12,top:'50%',transform:'translateY(-50%)',color:'var(--muted)'}}><I n="search" s={15}/></span>
+          <input className="form-input" style={{paddingLeft:36}} placeholder="Search..." value={q} onChange={e=>setQ(e.target.value)}/>
+        </div>
+        <select className="form-input" style={{width:'auto'}} value={mf} onChange={e=>setMf(e.target.value)}>
+          <option value="all">All Machines</option>
+          {MACHINES.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+      </div>
+      <div className="card" style={{padding:0}}>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>User</th><th>Machine</th><th>Start</th><th>End</th><th>Duration</th><th>Date</th>{user?.role==='admin'&&<th></th>}</tr></thead>
+            <tbody>
+              {filtered.length?filtered.map(h=>(
+                <tr key={h.id}>
+                  <td><div style={{display:'flex',alignItems:'center',gap:7}}><div className="user-avatar" style={{width:28,height:28,fontSize:11,background:'var(--navy3)'}}>{initials(h.userName)}</div>{h.userName}</div></td>
+                  <td>{h.machineName}</td>
+                  <td>{fmt(h.startTime)}</td>
+                  <td>{fmt(h.endTime)}</td>
+                  <td><span className="chip chip-navy">{fmtDur(h.durationMin)}</span></td>
+                  <td style={{color:'var(--muted)'}}>{fmtDate(h.date)}</td>
+                  {user?.role==='admin'&&<td><button className="btn btn-ghost btn-xs" style={{color:'var(--red)'}} onClick={()=>ctx.deleteHistory(h.id)}><I n="trash" s={12}/></button></td>}
+                </tr>
+              )):(
+                <tr><td colSpan={7} style={{textAlign:'center',color:'var(--muted)',padding:'28px 0'}}>No records</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── NOTIFICATIONS ────────────────────────────────────────────────────────────
+const NotificationsPage=({ctx})=>{
+  const{myNotifs,markAllRead,deleteNotif,clearMyNotifs,unread}=ctx;
+  useEffect(()=>markAllRead(),[]);
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:18,flexWrap:'wrap',gap:9}}>
+        <div className="section-title">Notifications</div>
+        {myNotifs.length>0&&<button className="btn btn-ghost btn-sm" onClick={clearMyNotifs}><I n="trash" s={14}/>Clear All</button>}
+      </div>
+      <div className="card" style={{padding:0,overflow:'hidden'}}>
+        {myNotifs.length?myNotifs.map(n=>(
+          <div key={n.id} className={`notif-item${n.read?'':' unread'}`} style={{justifyContent:'space-between'}}>
+            <div style={{display:'flex',gap:11,alignItems:'flex-start',flex:1}}>
+              <div style={{width:34,height:34,borderRadius:9,background:n.type==='finish'?'#fef3c7':'#dbeafe',color:n.type==='finish'?'#d97706':'#3b82f6',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                <I n="bell" s={15}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:n.read?400:600,lineHeight:1.4}}>{n.msg}</div>
+                <div style={{fontSize:11,color:'var(--muted)',marginTop:3}}>{new Date(n.time).toLocaleString()}</div>
+              </div>
+            </div>
+            <button className="btn btn-ghost btn-xs" style={{marginLeft:8,flexShrink:0}} onClick={()=>deleteNotif(n.id)}><I n="x" s={12}/></button>
+          </div>
+        )):(
+          <div style={{textAlign:'center',color:'var(--muted)',padding:'44px 0'}}>
+            <I n="bell" s={36}/>
+            <div style={{marginTop:10,fontSize:13}}>No notifications</div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ─── PROFILE ─────────────────────────────────────────────────────────────────
+const ProfilePage=({ctx})=>{
+  const{user,changePassword,editUser}=ctx;
+  const[cp,setCp]=useState({cur:'',np:'',cf:''});
+  const[perr,setPerr]=useState('');
+  const[phone,setPhone]=useState(user.phone||'');
+
+  const savePw=()=>{
+    if(cp.cur!==user.password){setPerr('Current password is incorrect');return;}
+    if(cp.np.length<6){setPerr('New password must be at least 6 characters');return;}
+    if(cp.np!==cp.cf){setPerr('Passwords do not match');return;}
+    changePassword(user.id,cp.np);setCp({cur:'',np:'',cf:''});setPerr('');
+  };
+  const savePhone=()=>{editUser(user.id,{phone});toast('Phone number saved.','success');};
+
+  return(
+    <div style={{maxWidth:480}}>
+      <div className="section-title">Profile & Settings</div>
+      <div className="section-sub">Manage your account</div>
+      <div className="card" style={{marginBottom:18}}>
+        <div style={{display:'flex',alignItems:'center',gap:14,marginBottom:18}}>
+          <div className="user-avatar" style={{width:56,height:56,fontSize:20,background:'var(--navy)'}}>{initials(user.name)}</div>
+          <div>
+            <div style={{fontSize:17,fontWeight:700}}>{user.name}</div>
+            <div style={{fontSize:13,color:'var(--muted)'}}>{user.username}</div>
+            <span className={`chip ${user.role==='admin'?'chip-red':'chip-navy'}`} style={{marginTop:4}}>{user.role==='admin'?'Administrator':'Employee'}</span>
+          </div>
+        </div>
+        <div className="grid-2">
+          {[['Department',user.department||'—'],['Username',user.username]].map(([l,v])=>(
+            <div key={l} style={{background:'var(--surface)',borderRadius:9,padding:'11px 13px'}}>
+              <div style={{fontSize:10,color:'var(--muted)',textTransform:'uppercase',letterSpacing:.5,marginBottom:3}}>{l}</div>
+              <div style={{fontSize:13,fontWeight:600}}>{v}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="card" style={{marginBottom:18}}>
+        <h3 style={{fontSize:14,fontWeight:700,marginBottom:14,display:'flex',alignItems:'center',gap:8}}><I n="phone" s={16}/>WhatsApp Number</h3>
+        <div style={{display:'flex',gap:9}}>
+          <input className="form-input" style={{flex:1}} placeholder="e.g. 97450097720" value={phone} onChange={e=>setPhone(e.target.value)}/>
+          <button className="btn btn-primary" onClick={savePhone}>Save</button>
+        </div>
+        <div style={{fontSize:12,color:'var(--muted)',marginTop:8}}>Include country code (e.g. 974 for Qatar). Used so colleagues can contact you via WhatsApp when your cycle finishes.</div>
+      </div>
+
+      <div className="card">
+        <h3 style={{fontSize:14,fontWeight:700,marginBottom:14,display:'flex',alignItems:'center',gap:8}}><I n="key" s={16}/>Change Password</h3>
+        {perr&&<div style={{background:'#fee2e2',color:'#dc2626',padding:'9px 13px',borderRadius:9,marginBottom:12,fontSize:13}}>{perr}</div>}
+        {[['cur','Current Password'],['np','New Password'],['cf','Confirm New Password']].map(([f,l])=>(
+          <div className="form-group" key={f}><label className="form-label">{l}</label>
+            <input className="form-input" type="password" value={cp[f]} onChange={e=>setCp(p=>({...p,[f]:e.target.value}))} placeholder={l}/>
+          </div>
+        ))}
+        <button className="btn btn-primary" style={{width:'100%'}} onClick={savePw}>Update Password</button>
+      </div>
+    </div>
+  );
+};
+
+// ─── ADMIN USERS ─────────────────────────────────────────────────────────────
+const AdminUsersPage=({ctx})=>{
+  const{users,addUser,editUser,deleteUser,changePassword}=ctx;
+  const[showForm,setShowForm]=useState(false);
+  const[editId,setEditId]=useState(null);
+  const[form,setForm]=useState({name:'',username:'',password:'',department:'',phone:''});
+  const[rp,setRp]=useState({id:null,pass:''});
+
+  const save=()=>{
+    if(!form.name||!form.username){toast('Name and username are required','error');return;}
+    if(!editId&&!form.password){toast('Password is required','error');return;}
+    if(editId)editUser(editId,{name:form.name,username:form.username,department:form.department,phone:form.phone||''});
+    else addUser({name:form.name,username:form.username,password:form.password,department:form.department,phone:form.phone||''});
+    setForm({name:'',username:'',password:'',department:'',phone:''});setShowForm(false);setEditId(null);
+  };
+  const startEdit=(u)=>{setEditId(u.id);setForm({name:u.name,username:u.username,password:'',department:u.department||'',phone:u.phone||''});setShowForm(true);};
+
+  return(
+    <div>
+      <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',marginBottom:18,flexWrap:'wrap',gap:10}}>
+        <div><div className="section-title">User Management</div><div className="section-sub" style={{marginBottom:0}}>Create and manage staff accounts</div></div>
+        <button className="btn btn-primary" onClick={()=>{setShowForm(!showForm);setEditId(null);setForm({name:'',username:'',password:'',department:'',phone:''});}}>
+          <I n="plus" s={15}/>New Account
+        </button>
+      </div>
+
+      {showForm&&(
+        <div className="card fade-in" style={{marginBottom:18}}>
+          <h3 style={{fontSize:15,fontWeight:700,marginBottom:14}}>{editId?'Edit Account':'Create Account'}</h3>
+          <div className="grid-2">
+            {[['name','Full Name','text'],['username','Username','text'],['department','Department (optional)','text'],['phone','WhatsApp Number','text']].map(([f,l,t])=>(
+              <div className="form-group" key={f}><label className="form-label">{l}</label>
+                <input className="form-input" type={t} value={form[f]} onChange={e=>setForm(p=>({...p,[f]:e.target.value}))} placeholder={l}/>
+              </div>
+            ))}
+            {!editId&&<div className="form-group"><label className="form-label">Password</label>
+              <input className="form-input" type="password" value={form.password} onChange={e=>setForm(p=>({...p,password:e.target.value}))} placeholder="Set initial password"/>
+            </div>}
+          </div>
+          <div style={{display:'flex',gap:9}}>
+            <button className="btn btn-primary" onClick={save}><I n="check" s={15}/>{editId?'Save Changes':'Create'}</button>
+            <button className="btn btn-ghost" onClick={()=>{setShowForm(false);setEditId(null);}}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      <div className="card" style={{padding:0}}>
+        <div className="table-wrap">
+          <table>
+            <thead><tr><th>Name</th><th>Username</th><th>Department</th><th>WhatsApp</th><th>Role</th><th>Actions</th></tr></thead>
+            <tbody>
+              {users.map(u=>(
+                <tr key={u.id}>
+                  <td><div style={{display:'flex',alignItems:'center',gap:8}}><div className="user-avatar" style={{width:29,height:29,fontSize:11,background:'var(--navy3)'}}>{initials(u.name)}</div>{u.name}</div></td>
+                  <td style={{color:'var(--muted)'}}>{u.username}</td>
+                  <td style={{color:'var(--muted)'}}>{u.department||'—'}</td>
+                  <td style={{color:'var(--muted)'}}>{u.phone||'—'}</td>
+                  <td><span className={`chip ${u.role==='admin'?'chip-red':'chip-navy'}`}>{u.role}</span></td>
+                  <td>
+                    <div style={{display:'flex',gap:6}}>
+                      <button className="btn btn-ghost btn-xs" onClick={()=>startEdit(u)}><I n="edit" s={13}/></button>
+                      {u.role!=='admin'&&<>
+                        <button className="btn btn-ghost btn-xs" onClick={()=>setRp({id:u.id,pass:'',name:u.name})} title="Reset password"><I n="key" s={13}/></button>
+                        <button className="btn btn-ghost btn-xs" style={{color:'var(--red)'}} onClick={()=>{if(confirm(`Delete ${u.name}?`))deleteUser(u.id);}}><I n="trash" s={13}/></button>
+                      </>}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {rp.id&&(
+        <div className="modal-overlay" onClick={()=>setRp({id:null,pass:''})}>
+          <div className="modal" onClick={e=>e.stopPropagation()}>
+            <div className="modal-header"><span className="modal-title">Reset Password — {rp.name}</span><button className="close-btn" onClick={()=>setRp({id:null,pass:''})}><I n="x" s={13}/></button></div>
+            <div className="modal-body">
+              <div className="form-group"><label className="form-label">New Password</label>
+                <input className="form-input" type="password" value={rp.pass} onChange={e=>setRp(p=>({...p,pass:e.target.value}))} placeholder="Enter new password" autoFocus/>
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-ghost" onClick={()=>setRp({id:null,pass:''})}>Cancel</button>
+              <button className="btn btn-primary" onClick={()=>{if(rp.pass.length<6){toast('Min 6 chars','error');return;}changePassword(rp.id,rp.pass);setRp({id:null,pass:''});}}>Reset Password</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ─── ADMIN DASH ───────────────────────────────────────────────────────────────
+const AdminDashPage=({ctx})=>{
+  const{users,sessions,history,notifs}=ctx;
+  const active=Object.values(sessions).filter(Boolean);
+  const todayH=history.filter(h=>new Date(h.date).toDateString()===new Date().toDateString());
+  const mu=MACHINES.map(m=>({...m,count:history.filter(h=>h.machineId===m.id).length,mins:history.filter(h=>h.machineId===m.id).reduce((a,h)=>a+h.durationMin,0)}));
+  const mx=Math.max(1,...mu.map(m=>m.count));
+  return(
+    <div>
+      <div className="section-title">Admin Dashboard</div>
+      <div className="section-sub">System overview and analytics</div>
+      <div className="grid-4" style={{marginBottom:22}}>
+        {[
+          {l:'Total Staff',v:users.length,icon:'users',c:'#8B5CF6',bg:'#ede9fe'},
+          {l:'In Use',v:active.filter(s=>timeLeft(s.endTime)>0&&s.status!=='pickup').length,icon:'machine',c:'#EF4444',bg:'#fee2e2'},
+          {l:'Awaiting Pickup',v:active.filter(s=>s.status==='pickup'||timeLeft(s.endTime)===0).length,icon:'shirt',c:'#F59E0B',bg:'#fef3c7'},
+          {l:"Today's Cycles",v:todayH.length,icon:'chart',c:'#3B82F6',bg:'#dbeafe'},
+        ].map(s=>(
+          <div key={s.l} className="stat-card">
+            <div className="stat-icon" style={{background:s.bg,color:s.c}}><I n={s.icon}/></div>
+            <div className="stat-value" style={{color:s.c}}>{s.v}</div>
+            <div className="stat-label">{s.l}</div>
+          </div>
+        ))}
+      </div>
+      <div className="grid-2" style={{marginBottom:22}}>
+        <div className="card">
+          <h3 style={{fontSize:14,fontWeight:700,marginBottom:14}}>Machine Usage</h3>
+          {mu.map(m=>(
+            <div key={m.id} style={{marginBottom:14}}>
+              <div style={{display:'flex',justifyContent:'space-between',marginBottom:5}}>
+                <span style={{fontSize:13,fontWeight:600}}>{m.name}</span>
+                <span style={{fontSize:12,color:'var(--muted)'}}>{m.count} cycles · {fmtDur(m.mins)}</span>
+              </div>
+              <div style={{height:7,background:'#f1f5f9',borderRadius:4}}>
+                <div style={{height:'100%',width:`${(m.count/mx)*100}%`,background:'var(--navy)',borderRadius:4,transition:'width .5s'}}/>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="card">
+          <h3 style={{fontSize:14,fontWeight:700,marginBottom:14}}>Top Users</h3>
+          {users.map(u=>({...u,count:history.filter(h=>h.userId===u.id).length})).sort((a,b)=>b.count-a.count).slice(0,6).map(u=>(
+            <div key={u.id} style={{display:'flex',alignItems:'center',gap:9,marginBottom:9}}>
+              <div className="user-avatar" style={{width:30,height:30,fontSize:11,background:'var(--navy3)'}}>{initials(u.name)}</div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:13,fontWeight:600}}>{u.name}</div>
+                <div style={{fontSize:11,color:'var(--muted)'}}>{u.department||u.username}</div>
+              </div>
+              <span className="chip chip-navy">{u.count}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="card">
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14}}>
+          <h3 style={{fontSize:14,fontWeight:700}}>Recent Activity</h3>
+          <button className="btn btn-ghost btn-sm" onClick={()=>ctx.setPage('history')}><I n="history" s={14}/>View All</button>
+        </div>
+        {history.slice(0,8).length?(
+          <div className="table-wrap" style={{border:'none'}}>
+            <table><thead><tr><th>User</th><th>Machine</th><th>Duration</th><th>Date</th><th>Time</th></tr></thead>
+              <tbody>{history.slice(0,8).map(h=>(
+                <tr key={h.id}>
+                  <td><div style={{display:'flex',alignItems:'center',gap:7}}><div className="user-avatar" style={{width:26,height:26,fontSize:10,background:'var(--navy3)'}}>{initials(h.userName)}</div>{h.userName}</div></td>
+                  <td>{h.machineName}</td>
+                  <td><span className="chip chip-navy">{fmtDur(h.durationMin)}</span></td>
+                  <td style={{color:'var(--muted)'}}>{fmtDate(h.date)}</td>
+                  <td style={{color:'var(--muted)'}}>{fmt(h.startTime)}</td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ):<div style={{textAlign:'center',color:'var(--muted)',padding:'20px 0',fontSize:13}}>No activity yet</div>}
+      </div>
+    </div>
+  );
+};
+
+// ─── MODAL ROUTER ─────────────────────────────────────────────────────────────
+const ModalRouter=({ctx})=>{
+  const{modal,setModal}=ctx;
+  if(!modal)return null;
+  if(modal.type==='start')return <StartModal ctx={ctx}/>;
+  if(modal.type==='contact')return <ContactModal ctx={ctx}/>;
+  return null;
+};
+
+// ─── START MACHINE MODAL ──────────────────────────────────────────────────────
+const StartModal=({ctx})=>{
+  const{modal,setModal,startMachine,sessions}=ctx;
+  const[dur,setDur]=useState(null);
+  const machine=modal.machine;
+  const occupied=sessions[machine.id];
+
+  if(occupied){
+    const secs=timeLeft(occupied.endTime);
+    return(
+      <div className="modal-overlay" onClick={()=>setModal(null)}>
+        <div className="modal" onClick={e=>e.stopPropagation()}>
+          <div className="modal-header"><span className="modal-title">Machine Occupied</span><button className="close-btn" onClick={()=>setModal(null)}><I n="x" s={13}/></button></div>
+          <div className="modal-body">
+            <div style={{textAlign:'center',padding:'8px 0 4px'}}>
+              <div style={{fontSize:34,marginBottom:10}}>⚠️</div>
+              <div style={{fontSize:14,color:'var(--muted)',lineHeight:1.6}}>
+                <strong style={{color:'var(--text)'}}>{machine.name}</strong> is currently in use by <strong>{occupied.userName}</strong>.
+                {secs>0?<> Finishes in <strong style={{color:'var(--red)'}}>{fmtSecs(secs)}</strong>.</>:<> Cycle has finished but clothes haven't been collected yet.</>}
+              </div>
+            </div>
+          </div>
+          <div className="modal-footer"><button className="btn btn-primary" onClick={()=>setModal(null)}>OK</button></div>
+        </div>
+      </div>
+    );
+  }
+
+  const sub=()=>{
+    if(!dur){toast('Please select a duration','error');return;}
+    startMachine(machine.id,machine.name,dur);
+    setModal(null);
+  };
+
+  return(
+    <div className="modal-overlay" onClick={()=>setModal(null)}>
+      <div className="modal modal-wide" onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <div className="modal-title">Start {machine.name}</div>
+            <div style={{fontSize:12,color:'var(--muted)',marginTop:2}}>Select your cycle duration</div>
+          </div>
+          <button className="close-btn" onClick={()=>setModal(null)}><I n="x" s={13}/></button>
+        </div>
+        <div className="modal-body">
+          <div className="dur-grid">
+            {DURATIONS.map(d=>(
+              <div key={d.minutes} className={`dur-btn${dur===d.minutes?' selected':''}`} onClick={()=>setDur(d.minutes)}>{d.label}</div>
+            ))}
+          </div>
+          {dur&&(
+            <div style={{marginTop:13,padding:'11px 15px',background:'#f0fdf4',borderRadius:10,fontSize:13,color:'#15803d',fontWeight:500,display:'flex',alignItems:'center',gap:8}}>
+              <I n="check" s={15}/><span>Selected: <strong>{DURATIONS.find(d=>d.minutes===dur)?.label}</strong> — finishes at {fmt(Date.now()+dur*60000)}</span>
+            </div>
+          )}
+        </div>
+        <div className="modal-footer">
+          <button className="btn btn-ghost" onClick={()=>setModal(null)}>Cancel</button>
+          <button className="btn btn-green btn-lg" onClick={sub} disabled={!dur}><I n="machine" s={16}/>START MACHINE</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── CONTACT USER MODAL ───────────────────────────────────────────────────────
+const ContactModal=({ctx})=>{
+  const{modal,setModal}=ctx;
+  const{session,machine}=modal;
+  const msg=waMsg(session.userName);
+  const hasPhone=!!session.userPhone;
+
+  return(
+    <div className="modal-overlay" onClick={()=>setModal(null)}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <div className="modal-title">Contact {session.userName}</div>
+            <div style={{fontSize:12,color:'var(--muted)',marginTop:2}}>Request clothes collection from {machine.name}</div>
+          </div>
+          <button className="close-btn" onClick={()=>setModal(null)}><I n="x" s={13}/></button>
+        </div>
+        <div className="modal-body">
+          <div style={{display:'flex',alignItems:'center',gap:11,padding:'12px 14px',background:'var(--surface)',borderRadius:12,marginBottom:16}}>
+            <div className="user-avatar" style={{width:42,height:42,fontSize:15,background:'var(--navy3)'}}>{initials(session.userName)}</div>
+            <div>
+              <div style={{fontSize:14,fontWeight:700}}>{session.userName}</div>
+              {session.userPhone?<div style={{fontSize:12,color:'var(--muted)',display:'flex',alignItems:'center',gap:5,marginTop:2}}><I n="phone" s={12}/>{session.userPhone}</div>:<div style={{fontSize:12,color:'var(--light)',marginTop:2}}>No phone number on file</div>}
+            </div>
+          </div>
+
+          <div style={{fontSize:13,fontWeight:600,marginBottom:8,color:'var(--muted)'}}>Message preview</div>
+          <div className="wa-preview">{msg}</div>
+
+          <div style={{marginTop:16,display:'flex',flexDirection:'column',gap:9}}>
+            <button className="btn btn-wa" style={{width:'100%',fontSize:14}} onClick={()=>{openWA(session.userPhone,session.userName);setModal(null);}}>
+              <I n="wa" s={17}/>{hasPhone?`Open WhatsApp (${session.userPhone})`:'Open WhatsApp (enter number manually)'}
+            </button>
+            <button className="btn btn-ghost" onClick={()=>setModal(null)} style={{width:'100%'}}>Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── RENDER ──────────────────────────────────────────────────────────────────
+ReactDOM.render(<App/>,document.getElementById('root'));
+</script>
+</body>
+</html>
