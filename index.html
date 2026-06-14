@@ -6,11 +6,10 @@
 <title>Rhafes Laundry – Hotel Laundry Management</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
-
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
@@ -220,6 +219,39 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// ─── BROWSER NOTIFICATIONS ───────────────────────────────────────────────────
+const notifSupported = typeof window !== 'undefined' && 'Notification' in window;
+const getNotifPerm = () => notifSupported ? Notification.permission : 'unsupported';
+
+const requestNotifPermission = async () => {
+  if (!notifSupported) return 'unsupported';
+  if (Notification.permission === 'granted') return 'granted';
+  try { return await Notification.requestPermission(); } catch(e) { return 'denied'; }
+};
+
+const sendBrowserNotif = (title, body) => {
+  if (!notifSupported || Notification.permission !== 'granted') return;
+  try {
+    const n = new Notification(title, { body, tag:'rhafes-laundry', requireInteraction:true });
+    n.onclick = () => { window.focus(); n.close(); };
+  } catch(e) {}
+};
+
+const playNotifSound = () => {
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    [[880,0],[1100,0.18],[1320,0.36]].forEach(([freq,t])=>{
+      const o=ac.createOscillator(), g=ac.createGain();
+      o.connect(g); g.connect(ac.destination);
+      o.frequency.value=freq; o.type='sine';
+      g.gain.setValueAtTime(0,ac.currentTime+t);
+      g.gain.linearRampToValueAtTime(0.25,ac.currentTime+t+0.02);
+      g.gain.linearRampToValueAtTime(0,ac.currentTime+t+0.18);
+      o.start(ac.currentTime+t); o.stop(ac.currentTime+t+0.22);
+    });
+  } catch(e) {}
+};
+
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const MACHINES=[
   {id:'wm1',name:'Washing Machine 1',type:'washer',icon:'🫧',num:1},
@@ -298,6 +330,7 @@ const App=()=>{
   const[modal,setModal]=useState(null);
   const[sidebarOpen,setSidebarOpen]=useState(false);
   const[tick,setTick]=useState(0);
+  const[notifPerm,setNotifPerm]=useState(getNotifPerm);
   const remindersRef=useRef(LS.get('reminders',{}));
 
   // 1. Live Sync Users from Firestore
@@ -307,21 +340,20 @@ const App=()=>{
       snapshot.forEach((doc) => {
         usersList.push({ id: doc.id, ...doc.data() });
       });
-      // If Firestore is empty (first run), seed the Admin account
       if (usersList.length === 0) {
-        const adminUser = { username:'admin', password:'admin123', name:'Admin User', role:'admin', department:'Management', phone:'' };
-        db.collection('users').doc('admin').set(adminUser);
+        db.collection('users').doc('admin').set({ username:'admin', password:'admin123', name:'Admin User', role:'admin', department:'Management', phone:'' });
       } else {
         setUsers(usersList);
-        // Sync currently logged-in user if their info changed in DB
-        if (user) {
-          const currentUpdated = usersList.find(u => u.id === user.id);
-          if (currentUpdated) setUser(currentUpdated);
-        }
+        setUser(prev => {
+          if (!prev) return prev;
+          const updated = usersList.find(u => u.id === prev.id || u.username === prev.username);
+          if (updated) { LS.set('user', updated); return updated; }
+          return prev;
+        });
       }
     });
     return () => unsubscribe();
-  }, [user?.id]);
+  }, []);
 
   // 2. Live Sync Active Machine Sessions from Firestore
   useEffect(() => {
@@ -377,7 +409,11 @@ const App=()=>{
         const n={ userId:s.userId, machineId:mid, msg:`🔔 Your laundry on ${s.machineName} is done! Please collect your clothes.`, time:now, read:false, type:'finish' };
         db.collection('notifications').add(n);
         
-        if(s.userId===user?.id) toast(n.msg,'info');
+        if(s.userId===user?.id){
+          toast(n.msg,'info');
+          playNotifSound();
+          sendBrowserNotif('🫧 Laundry Done!',`Your clothes on ${s.machineName} are ready for collection.`);
+        }
         remindersRef.current={...remindersRef.current,[mid]:now};
         LS.set('reminders',remindersRef.current);
       }
@@ -387,8 +423,11 @@ const App=()=>{
         if(now-lastR>=300000){
           const n={ userId:s.userId, machineId:mid, msg:`⏰ Reminder: Your clothes on ${s.machineName} are still waiting to be collected.`, time:now, read:false, type:'reminder' };
           db.collection('notifications').add(n);
-          
-          if(s.userId===user?.id) toast(n.msg,'warning');
+          if(s.userId===user?.id){
+            toast(n.msg,'warning');
+            playNotifSound();
+            sendBrowserNotif('⏰ Reminder',`Your clothes on ${s.machineName} are still waiting.`);
+          }
           remindersRef.current={...remindersRef.current,[mid]:now};
           LS.set('reminders',remindersRef.current);
         }
@@ -441,7 +480,8 @@ const App=()=>{
   };
   
   const addUser=(u)=>{
-    db.collection('users').add({...u, role:'employee'});
+    const docId=u.username.toLowerCase().replace(/[^a-z0-9]/g,'_');
+    db.collection('users').doc(docId).set({...u, role:'employee'});
     toast('Account created.','success');
   };
   
@@ -490,7 +530,16 @@ const App=()=>{
     }
   };
 
+  const enableNotif=async()=>{
+    const r=await requestNotifPermission();
+    setNotifPerm(r);
+    if(r==='granted') toast('✅ Notifications enabled! You will be alerted when laundry finishes.','success');
+    else if(r==='denied') toast('Notifications blocked. Please allow in browser settings.','error');
+    return r;
+  };
+
   const ctx={page,setPage,user,users,sessions,history,notifs,myNotifs,unread,tick,modal,setModal,
+    notifPerm,enableNotif,
     login,logout,startMachine,collectClothes,addUser,editUser,deleteUser,changePassword,
     markAllRead,deleteNotif,clearMyNotifs,deleteHistory,clearAllHistory};
 
@@ -550,6 +599,18 @@ const HomePage=({ctx})=>{
           ))}
         </div>
         <button className="btn btn-green btn-lg" style={{marginTop:34}} onClick={()=>ctx.setPage('login')}><I n="machine"/>Access Dashboard</button>
+        {notifSupported&&Notification.permission!=='granted'&&(
+          <button className="btn btn-amber" style={{marginTop:14}} onClick={async()=>{
+            const r=await requestNotifPermission();
+            if(r==='granted') toast('✅ Notifications enabled!','success');
+            else if(r==='denied') toast('Please allow notifications in browser settings.','error');
+          }}><I n="bell" s={16}/>🔔 Enable Laundry Notifications</button>
+        )}
+        {notifSupported&&Notification.permission==='granted'&&(
+          <div style={{marginTop:14,fontSize:13,fontWeight:600,color:'var(--green)',display:'flex',alignItems:'center',gap:6}}>
+            <span style={{width:8,height:8,borderRadius:'50%',background:'var(--green)',display:'inline-block'}}/>Notifications active
+          </div>
+        )}
       </div>
       <footer className="hp-footer">
         <div style={{color:'rgba(255,255,255,.32)',fontSize:13}}>Powered by <strong style={{color:'rgba(255,255,255,.55)'}}>Rhafes Laundry</strong></div>
@@ -652,6 +713,16 @@ const Topbar=({ctx,onMenu})=>{
         <span className="topbar-title">{titles[ctx.page]||''}</span>
       </div>
       <div className="topbar-actions">
+        {ctx.notifPerm!=='granted'&&ctx.notifPerm!=='unsupported'&&(
+          <button className="btn btn-amber btn-sm" onClick={ctx.enableNotif} style={{gap:6}}>
+            <I n="bell" s={14}/><span style={{fontSize:12}}>Enable Alerts</span>
+          </button>
+        )}
+        {ctx.notifPerm==='granted'&&(
+          <span style={{fontSize:11,color:'var(--green)',fontWeight:600,display:'flex',alignItems:'center',gap:4}}>
+            <span style={{width:7,height:7,borderRadius:'50%',background:'var(--green)',display:'inline-block'}}/>Alerts ON
+          </span>
+        )}
         <div style={{position:'relative',cursor:'pointer'}} onClick={()=>ctx.setPage('notifications')}>
           <I n="bell" s={21}/>
           {ctx.unread>0&&<span className="notif-dot"/>}
@@ -956,10 +1027,12 @@ const NotificationsPage=({ctx})=>{
 
 // ─── PROFILE ─────────────────────────────────────────────────────────────────
 const ProfilePage=({ctx})=>{
-  const{user,changePassword,editUser}=ctx;
+  const{user,changePassword,editUser,notifPerm,enableNotif}=ctx;
   const[cp,setCp]=useState({cur:'',np:'',cf:''});
   const[perr,setPerr]=useState('');
   const[phone,setPhone]=useState(user.phone||'');
+  const[localPerm,setLocalPerm]=useState(notifPerm);
+  useEffect(()=>setLocalPerm(notifPerm),[notifPerm]);
 
   const savePw=()=>{
     if(cp.cur!==user.password){setPerr('Current password is incorrect');return;}
@@ -990,6 +1063,19 @@ const ProfilePage=({ctx})=>{
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="card" style={{marginBottom:18}}>
+        <h3 style={{fontSize:14,fontWeight:700,marginBottom:14,display:'flex',alignItems:'center',gap:8}}><I n="bell" s={16}/>Phone Notifications</h3>
+        {notifPerm==='unsupported'&&<div style={{background:'#fef3c7',color:'#92400e',padding:'10px 13px',borderRadius:9,fontSize:13}}>⚠️ Your browser does not support push notifications.</div>}
+        {notifPerm==='denied'&&<div style={{background:'#fee2e2',color:'#991b1b',padding:'10px 13px',borderRadius:9,fontSize:13,lineHeight:1.6}}>❌ Notifications blocked. Go to browser settings → Site Settings → Notifications → Allow this site, then refresh.</div>}
+        {(notifPerm==='default'||notifPerm==='prompt')&&(
+          <div>
+            <p style={{fontSize:13,color:'var(--muted)',marginBottom:12,lineHeight:1.6}}>Receive an alert with sound on your phone when your laundry cycle finishes — even if the browser is in the background.</p>
+            <button className="btn btn-amber" style={{width:'100%'}} onClick={()=>enableNotif().then(r=>setLocalPerm(r))}><I n="bell" s={16}/>🔔 Enable Push Notifications</button>
+          </div>
+        )}
+        {notifPerm==='granted'&&<div style={{background:'#d1fae5',color:'#065f46',padding:'10px 13px',borderRadius:9,fontSize:13,display:'flex',alignItems:'center',gap:8,fontWeight:600}}><I n="check" s={16}/>Notifications active — you will get an alert when your laundry finishes.</div>}
       </div>
 
       <div className="card" style={{marginBottom:18}}>
