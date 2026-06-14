@@ -8,6 +8,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Inter',sans-serif;background:#F0F4F8;color:#1a2744;min-height:100vh}
@@ -197,8 +201,24 @@ tr:hover td{background:#fafbff}
 </head>
 <body>
 <div id="root"></div>
+
 <script type="text/babel">
 const {useState,useEffect,useRef}=React;
+
+// ─── FIREBASE INITIALIZATION ──────────────────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyDvlXYAxbfrJxfa2IEkU05uYC1XQmEJBco",
+  authDomain: "rhafes-laundry.firebaseapp.com",
+  projectId: "rhafes-laundry",
+  storageBucket: "rhafes-laundry.firebasestorage.app",
+  messagingSenderId: "776281553249",
+  appId: "1:776281553249:web:ca0782f53329e21bce6d20",
+  measurementId: "G-B1Y9DL61DN"
+};
+
+// Initialize Firebase App & Firestore using compat mode
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
 
 // ─── CONSTANTS ────────────────────────────────────────────────────────────────
 const MACHINES=[
@@ -213,10 +233,6 @@ const DURATIONS=[
   {label:'1 hr',minutes:60},{label:'1.5 hrs',minutes:90},{label:'2 hrs',minutes:120},
   {label:'2.5 hrs',minutes:150},{label:'3 hrs',minutes:180},{label:'3.5 hrs',minutes:210},
   {label:'4 hrs',minutes:240},{label:'5 hrs',minutes:300},{label:'6 hrs',minutes:360},
-];
-
-const USERS_INIT=[
-  {id:'admin',username:'admin',password:'admin123',name:'Admin User',role:'admin',department:'Management',phone:''},
 ];
 
 const LS={
@@ -275,23 +291,77 @@ const toast=(m,t)=>_addToast&&_addToast(m,t);
 const App=()=>{
   const[page,setPage]=useState('home');
   const[user,setUser]=useState(()=>LS.get('user',null));
-  const[users,setUsers]=useState(()=>LS.get('users',USERS_INIT));
-  const[sessions,setSessions]=useState(()=>LS.get('sessions',{}));
-  const[history,setHistory]=useState(()=>LS.get('history',[]));
-  const[notifs,setNotifs]=useState(()=>LS.get('notifs',[]));
+  const[users,setUsers]=useState([]);
+  const[sessions,setSessions]=useState({});
+  const[history,setHistory]=useState([]);
+  const[notifs,setNotifs]=useState([]);
   const[modal,setModal]=useState(null);
   const[sidebarOpen,setSidebarOpen]=useState(false);
   const[tick,setTick]=useState(0);
-  // reminder tracker: {machineId: lastReminderTime}
   const remindersRef=useRef(LS.get('reminders',{}));
 
-  useEffect(()=>LS.set('users',users),[users]);
-  useEffect(()=>LS.set('sessions',sessions),[sessions]);
-  useEffect(()=>LS.set('history',history),[history]);
-  useEffect(()=>LS.set('notifs',notifs),[notifs]);
+  // 1. Live Sync Users from Firestore
+  useEffect(() => {
+    const unsubscribe = db.collection('users').onSnapshot((snapshot) => {
+      const usersList = [];
+      snapshot.forEach((doc) => {
+        usersList.push({ id: doc.id, ...doc.data() });
+      });
+      // If Firestore is empty (first run), seed the Admin account
+      if (usersList.length === 0) {
+        const adminUser = { username:'admin', password:'admin123', name:'Admin User', role:'admin', department:'Management', phone:'' };
+        db.collection('users').doc('admin').set(adminUser);
+      } else {
+        setUsers(usersList);
+        // Sync currently logged-in user if their info changed in DB
+        if (user) {
+          const currentUpdated = usersList.find(u => u.id === user.id);
+          if (currentUpdated) setUser(currentUpdated);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [user?.id]);
+
+  // 2. Live Sync Active Machine Sessions from Firestore
+  useEffect(() => {
+    const unsubscribe = db.collection('sessions').onSnapshot((snapshot) => {
+      const activeSessions = {};
+      snapshot.forEach((doc) => {
+        activeSessions[doc.id] = doc.data();
+      });
+      setSessions(activeSessions);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 3. Live Sync Activity History from Firestore
+  useEffect(() => {
+    const unsubscribe = db.collection('history').orderBy('startTime', 'desc').onSnapshot((snapshot) => {
+      const historyList = [];
+      snapshot.forEach((doc) => {
+        historyList.push({ id: doc.id, ...doc.data() });
+      });
+      setHistory(historyList);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // 4. Live Sync Notifications from Firestore
+  useEffect(() => {
+    const unsubscribe = db.collection('notifications').orderBy('time', 'desc').onSnapshot((snapshot) => {
+      const notifList = [];
+      snapshot.forEach((doc) => {
+        notifList.push({ id: doc.id, ...doc.data() });
+      });
+      setNotifs(notifList);
+    });
+    return () => unsubscribe();
+  }, []);
+
   useEffect(()=>{if(user)LS.set('user',user);},[user]);
 
-  // 1-second tick
+  // 1-second tick loop
   useEffect(()=>{const t=setInterval(()=>setTick(p=>p+1),1000);return()=>clearInterval(t);},[]);
 
   // Check finishes & send reminders every 5 min
@@ -300,12 +370,14 @@ const App=()=>{
     Object.entries(sessions).forEach(([mid,s])=>{
       if(!s)return;
       const secs=timeLeft(s.endTime);
-      // Just finished → first notification
+      // Just finished → update state and push Firestore Notification
       if(secs===0&&!s.notified){
-        setSessions(p=>({...p,[mid]:{...s,notified:true,status:'pickup'}}));
-        const n={id:uid(),userId:s.userId,machineId:mid,msg:`🔔 Your laundry on ${s.machineName} is done! Please collect your clothes.`,time:now,read:false,type:'finish'};
-        setNotifs(p=>[n,...p]);
-        if(s.userId===user?.id)toast(n.msg,'info');
+        db.collection('sessions').doc(mid).update({ notified: true, status: 'pickup' });
+        
+        const n={ userId:s.userId, machineId:mid, msg:`🔔 Your laundry on ${s.machineName} is done! Please collect your clothes.`, time:now, read:false, type:'finish' };
+        db.collection('notifications').add(n);
+        
+        if(s.userId===user?.id) toast(n.msg,'info');
         remindersRef.current={...remindersRef.current,[mid]:now};
         LS.set('reminders',remindersRef.current);
       }
@@ -313,15 +385,16 @@ const App=()=>{
       if(s.status==='pickup'&&secs===0){
         const lastR=remindersRef.current[mid]||0;
         if(now-lastR>=300000){
-          const n={id:uid(),userId:s.userId,machineId:mid,msg:`⏰ Reminder: Your clothes on ${s.machineName} are still waiting to be collected.`,time:now,read:false,type:'reminder'};
-          setNotifs(p=>[n,...p]);
-          if(s.userId===user?.id)toast(n.msg,'warning');
+          const n={ userId:s.userId, machineId:mid, msg:`⏰ Reminder: Your clothes on ${s.machineName} are still waiting to be collected.`, time:now, read:false, type:'reminder' };
+          db.collection('notifications').add(n);
+          
+          if(s.userId===user?.id) toast(n.msg,'warning');
           remindersRef.current={...remindersRef.current,[mid]:now};
           LS.set('reminders',remindersRef.current);
         }
       }
     });
-  },[tick]);
+  },[tick, sessions]);
 
   const myNotifs=notifs.filter(n=>n.userId===user?.id);
   const unread=myNotifs.filter(n=>!n.read).length;
@@ -331,35 +404,91 @@ const App=()=>{
     if(u){setUser(u);setPage('dashboard');toast(`Welcome, ${u.name.split(' ')[0]}!`,'success');return true;}
     return false;
   };
+  
   const logout=()=>{setUser(null);setPage('home');LS.set('user',null);setSidebarOpen(false);};
+  
   const startMachine=(mid,mname,durMin)=>{
     const now=Date.now();
     const s={userId:user.id,userName:user.name,userPhone:user.phone||'',machineName:mname,startTime:now,endTime:now+durMin*60000,durationMin:durMin,durationMs:durMin*60000,notified:false,status:'busy'};
-    setSessions(p=>({...p,[mid]:s}));
-    setHistory(p=>[{id:uid(),userId:user.id,userName:user.name,machineId:mid,machineName:mname,startTime:now,endTime:now+durMin*60000,durationMin:durMin,date:new Date().toISOString()},...p]);
+    
+    // Save to Firestore
+    db.collection('sessions').doc(mid).set(s);
+    db.collection('history').add({userId:user.id,userName:user.name,machineId:mid,machineName:mname,startTime:now,endTime:now+durMin*60000,durationMin:durMin,date:new Date().toISOString()});
+    
     toast(`${mname} started! ${fmtDur(durMin)} cycle.`,'success');
   };
+  
   const collectClothes=(mid)=>{
     const s=sessions[mid];
-    setSessions(p=>{const n={...p};delete n[mid];return n;});
+    // Delete session document from Firestore
+    db.collection('sessions').doc(mid).delete();
+    
     const rem={...remindersRef.current};delete rem[mid];remindersRef.current=rem;LS.set('reminders',rem);
     toast('Clothes collected — machine is now available.','success');
-    // mark related notifs read
-    if(s)setNotifs(p=>p.map(n=>n.machineId===mid&&n.userId===s.userId?{...n,read:true}:n));
+    
+    // Mark related notifications as read in Firestore
+    if(s) {
+      db.collection('notifications')
+        .where('machineId', '==', mid)
+        .where('userId', '==', s.userId)
+        .get()
+        .then((querySnapshot) => {
+          querySnapshot.forEach((doc) => {
+            doc.ref.update({ read: true });
+          });
+        });
+    }
   };
-  const addUser=(u)=>{setUsers(p=>[...p,{...u,id:uid(),role:'employee'}]);toast('Account created.','success');};
+  
+  const addUser=(u)=>{
+    db.collection('users').add({...u, role:'employee'});
+    toast('Account created.','success');
+  };
+  
   const editUser=(id,data)=>{
-    setUsers(p=>p.map(u=>u.id===id?{...u,...data}:u));
-    if(user?.id===id)setUser(u=>({...u,...data}));
+    db.collection('users').doc(id).update(data);
     toast('Account updated.','success');
   };
-  const deleteUser=(id)=>{setUsers(p=>p.filter(u=>u.id!==id));toast('Account deleted.','info');};
-  const changePassword=(id,pw)=>{setUsers(p=>p.map(u=>u.id===id?{...u,password:pw}:u));if(user?.id===id)setUser(u=>({...u,password:pw}));toast('Password updated.','success');};
-  const markAllRead=()=>setNotifs(p=>p.map(n=>n.userId===user?.id?{...n,read:true}:n));
-  const deleteNotif=(id)=>setNotifs(p=>p.filter(n=>n.id!==id));
-  const clearMyNotifs=()=>setNotifs(p=>p.filter(n=>n.userId!==user?.id));
-  const deleteHistory=(id)=>setHistory(p=>p.filter(h=>h.id!==id));
-  const clearAllHistory=()=>setHistory([]);
+  
+  const deleteUser=(id)=>{
+    db.collection('users').doc(id).delete();
+    toast('Account deleted.','info');
+  };
+  
+  const changePassword=(id,pw)=>{
+    db.collection('users').doc(id).update({password:pw});
+    toast('Password updated.','success');
+  };
+  
+  const markAllRead=()=>{
+    db.collection('notifications').where('userId', '==', user?.id).get().then((snapshot) => {
+      snapshot.forEach(doc => doc.ref.update({read: true}));
+    });
+  };
+  
+  const deleteNotif=(id)=>{
+    db.collection('notifications').doc(id).delete();
+  };
+  
+  const clearMyNotifs=()=>{
+    db.collection('notifications').where('userId', '==', user?.id).get().then((snapshot) => {
+      snapshot.forEach(doc => doc.ref.delete());
+    });
+  };
+  
+  const deleteHistory=(id)=>{
+    db.collection('history').doc(id).delete();
+    toast('Account deleted.','info');
+  };
+  
+  const clearAllHistory=()=>{
+    if(confirm("Are you sure you want to wipe all history data?")) {
+      db.collection('history').get().then((snapshot) => {
+        snapshot.forEach(doc => doc.ref.delete());
+      });
+      toast('History wiped.','info');
+    }
+  };
 
   const ctx={page,setPage,user,users,sessions,history,notifs,myNotifs,unread,tick,modal,setModal,
     login,logout,startMachine,collectClothes,addUser,editUser,deleteUser,changePassword,
@@ -767,7 +896,7 @@ const HistoryPage=({ctx})=>{
       <div className="card" style={{padding:0}}>
         <div className="table-wrap">
           <table>
-            <thead><tr><th>User</th><th>Machine</th><th>Start</th><th>End</th><th>Duration</th><th>Date</th>{user?.role==='admin'&&<th></th>}</tr></thead>
+            <thead><tr><th>User</th><th>Machine</th><th>Start</th><th>End</th><th>Duration</th><th>Date</th><th></th></tr></thead>
             <tbody>
               {filtered.length?filtered.map(h=>(
                 <tr key={h.id}>
@@ -777,7 +906,7 @@ const HistoryPage=({ctx})=>{
                   <td>{fmt(h.endTime)}</td>
                   <td><span className="chip chip-navy">{fmtDur(h.durationMin)}</span></td>
                   <td style={{color:'var(--muted)'}}>{fmtDate(h.date)}</td>
-                  {user?.role==='admin'&&<td><button className="btn btn-ghost btn-xs" style={{color:'var(--red)'}} onClick={()=>ctx.deleteHistory(h.id)}><I n="trash" s={12}/></button></td>}
+                  <td>{user?.role==='admin'&&<button className="btn btn-ghost btn-xs" style={{color:'var(--red)'}} onClick={()=>ctx.deleteHistory(h.id)}><I n="trash" s={12}/></button>}</td>
                 </tr>
               )):(
                 <tr><td colSpan={7} style={{textAlign:'center',color:'var(--muted)',padding:'28px 0'}}>No records</td></tr>
