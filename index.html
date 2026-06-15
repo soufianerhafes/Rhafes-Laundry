@@ -219,20 +219,97 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// ─── BROWSER NOTIFICATIONS ───────────────────────────────────────────────────
+// ─── SERVICE WORKER + PUSH NOTIFICATIONS ─────────────────────────────────────
 const notifSupported = typeof window !== 'undefined' && 'Notification' in window;
+const swSupported = typeof navigator !== 'undefined' && 'serviceWorker' in navigator;
 const getNotifPerm = () => notifSupported ? Notification.permission : 'unsupported';
+
+// Inline Service Worker code as blob
+const SW_CODE = `
+self.addEventListener('install', e => self.skipWaiting());
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('push', e => {
+  const data = e.data ? e.data.json() : {};
+  const title = data.title || '🫧 Rhafes Laundry';
+  const options = {
+    body: data.body || 'Laundry update',
+    icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🫧</text></svg>',
+    badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🫧</text></svg>',
+    tag: data.tag || 'rhafes-laundry',
+    requireInteraction: true,
+    vibrate: [200, 100, 200],
+    data: { url: data.url || self.location.origin }
+  };
+  e.waitUntil(self.registration.showNotification(title, options));
+});
+self.addEventListener('notificationclick', e => {
+  e.notification.close();
+  const url = (e.notification.data && e.notification.data.url) || self.location.origin;
+  e.waitUntil(clients.matchAll({type:'window',includeUncontrolled:true}).then(cls => {
+    for (const c of cls) { if (c.url.startsWith(self.location.origin) && 'focus' in c) return c.focus(); }
+    if (clients.openWindow) return clients.openWindow(url);
+  }));
+});
+self.addEventListener('message', e => {
+  if (e.data && e.data.type === 'SHOW_NOTIF') {
+    const { title, body, tag } = e.data;
+    self.registration.showNotification(title, {
+      body, tag: tag || 'rhafes-notif',
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">🫧</text></svg>',
+      requireInteraction: true,
+      vibrate: [200, 100, 200],
+      data: { url: self.location.origin }
+    });
+  }
+});
+`;
+
+let _swReg = null;
+
+const registerSW = async () => {
+  if (!swSupported) return null;
+  if (_swReg) return _swReg;
+  try {
+    // Use blob URL for inline SW
+    const blob = new Blob([SW_CODE], {type:'application/javascript'});
+    const swUrl = URL.createObjectURL(blob);
+    _swReg = await navigator.serviceWorker.register(swUrl, {scope:'/'});
+    await navigator.serviceWorker.ready;
+    return _swReg;
+  } catch(e) {
+    // Fallback: try registering as sw.js if blob fails (cross-origin restriction)
+    try {
+      _swReg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+      return _swReg;
+    } catch(e2) { return null; }
+  }
+};
 
 const requestNotifPermission = async () => {
   if (!notifSupported) return 'unsupported';
-  if (Notification.permission === 'granted') return 'granted';
-  try { return await Notification.requestPermission(); } catch(e) { return 'denied'; }
+  if (Notification.permission === 'granted') { await registerSW(); return 'granted'; }
+  try {
+    const r = await Notification.requestPermission();
+    if (r === 'granted') await registerSW();
+    return r;
+  } catch(e) { return 'denied'; }
 };
 
-const sendBrowserNotif = (title, body) => {
+const sendBrowserNotif = async (title, body, tag) => {
   if (!notifSupported || Notification.permission !== 'granted') return;
+  // Try via Service Worker first (works when browser is backgrounded/closed)
   try {
-    const n = new Notification(title, { body, tag:'rhafes-laundry', requireInteraction:true });
+    const reg = _swReg || await navigator.serviceWorker.ready;
+    if (reg && reg.active) {
+      reg.active.postMessage({ type: 'SHOW_NOTIF', title, body, tag: tag || 'rhafes-laundry' });
+      return;
+    }
+    if (reg) { await reg.showNotification(title, { body, tag: tag||'rhafes-laundry', requireInteraction:true, vibrate:[200,100,200], data:{url:window.location.href} }); return; }
+  } catch(e) {}
+  // Fallback to basic Notification
+  try {
+    const n = new Notification(title, { body, tag: tag||'rhafes-laundry', requireInteraction:true });
     n.onclick = () => { window.focus(); n.close(); };
   } catch(e) {}
 };
@@ -333,6 +410,11 @@ const App=()=>{
   const[notifPerm,setNotifPerm]=useState(getNotifPerm);
   const remindersRef=useRef(LS.get('reminders',{}));
 
+  // Register SW early
+  useEffect(()=>{
+    if(notifSupported && Notification.permission==='granted') registerSW();
+  },[]);
+
   // 1. Live Sync Users from Firestore
   useEffect(() => {
     const unsubscribe = db.collection('users').onSnapshot((snapshot) => {
@@ -412,7 +494,7 @@ const App=()=>{
         if(s.userId===user?.id){
           toast(n.msg,'info');
           playNotifSound();
-          sendBrowserNotif('🫧 Laundry Done!',`Your clothes on ${s.machineName} are ready for collection.`);
+        sendBrowserNotif('🫧 Laundry Done!',`Your clothes on ${s.machineName} are ready for collection.`, `finish-${mid}`);
         }
         remindersRef.current={...remindersRef.current,[mid]:now};
         LS.set('reminders',remindersRef.current);
@@ -426,7 +508,7 @@ const App=()=>{
           if(s.userId===user?.id){
             toast(n.msg,'warning');
             playNotifSound();
-            sendBrowserNotif('⏰ Reminder',`Your clothes on ${s.machineName} are still waiting.`);
+            sendBrowserNotif('⏰ Reminder',`Your clothes on ${s.machineName} are still waiting.`, `reminder-${mid}`);
           }
           remindersRef.current={...remindersRef.current,[mid]:now};
           LS.set('reminders',remindersRef.current);
@@ -533,13 +615,28 @@ const App=()=>{
   const enableNotif=async()=>{
     const r=await requestNotifPermission();
     setNotifPerm(r);
-    if(r==='granted') toast('✅ Notifications enabled! You will be alerted when laundry finishes.','success');
-    else if(r==='denied') toast('Notifications blocked. Please allow in browser settings.','error');
+    if(r==='granted'){
+      await registerSW();
+      toast('✅ إشعارات مفعّلة! ستصلك على هاتفك حتى لو كان المتصفح مغلقاً.','success');
+    }
+    else if(r==='denied') toast('تم حظر الإشعارات. يرجى السماح بها من إعدادات المتصفح.','error');
     return r;
   };
 
+  const notifyUserDirectly=async(session, machineId)=>{
+    const now=Date.now();
+    // Add notification to Firestore for that user
+    const n={ userId:session.userId, machineId:machineId, msg:`🔔 Reminder from staff: Please collect your clothes from ${session.machineName}. They've been ready since ${fmt(session.endTime)}.`, time:now, read:false, type:'reminder' };
+    await db.collection('notifications').add(n);
+    // If it's the logged-in user's own session, also push browser notification
+    if(session.userId===user?.id){
+      sendBrowserNotif('🔔 Clothes Pickup Reminder', `Please collect your clothes from ${session.machineName}.`, `manual-${machineId}`);
+    }
+    toast(`✅ تم إرسال الإشعار إلى ${session.userName}`,'success');
+  };
+
   const ctx={page,setPage,user,users,sessions,history,notifs,myNotifs,unread,tick,modal,setModal,
-    notifPerm,enableNotif,
+    notifPerm,enableNotif,notifyUserDirectly,
     login,logout,startMachine,collectClothes,addUser,editUser,deleteUser,changePassword,
     markAllRead,deleteNotif,clearMyNotifs,deleteHistory,clearAllHistory};
 
@@ -746,16 +843,20 @@ const Ring=({p,color,size=100})=>{
 };
 
 // ─── WHATSAPP HELPER ──────────────────────────────────────────────────────────
-const waMsg=(userName)=>`Hello ${userName}, I hope you are doing well. Your laundry cycle appears to be completed. I would like to use the machine. Could you please collect your clothes when possible? Thank you.`;
-const openWA=(phone,name)=>{
-  const msg=encodeURIComponent(waMsg(name));
+const waMsg=(userName, startTime, endTime)=>{
+  const startStr = startTime ? new Date(startTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+  const endStr = endTime ? new Date(endTime).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+  return `Hello ${userName}, I hope you are doing well. Your laundry cycle has been completed. It started at ${startStr} and finished at ${endStr}. I would like to use the machine. Could you please collect your clothes at your earliest convenience? Thank you very much! 🫧`;
+};
+const openWA=(phone, userName, startTime, endTime)=>{
+  const msg=encodeURIComponent(waMsg(userName, startTime, endTime));
   const num=phone?.replace(/\D/g,'');
-  if(num)window.open(`https://wa.me/${num}?text=${msg}`,'_blank');
+  if(num) window.open(`https://wa.me/${num}?text=${msg}`,'_blank');
   else window.open(`https://wa.me/?text=${msg}`,'_blank');
 };
 
 // ─── MACHINE CARD ─────────────────────────────────────────────────────────────
-const MachineCard=({machine,session,tick,onStart,onCollect,currentUser,onContact})=>{
+const MachineCard=({machine,session,tick,onStart,onCollect,currentUser,onContact,onNotify})=>{
   const secs=session?timeLeft(session.endTime):0;
   const isPickup=session&&(session.status==='pickup'||secs<=0);
   const isFinishing=session&&!isPickup&&secs<=300;
@@ -765,6 +866,7 @@ const MachineCard=({machine,session,tick,onStart,onCollect,currentUser,onContact
   const isMySession=session&&session.userId===currentUser?.id;
   const isAdmin=currentUser?.role==='admin';
   const canCollect=isMySession||isAdmin;
+  const hasPhone=session&&!!session.userPhone;
 
   return(
     <div className={`machine-card ${sk}`}>
@@ -819,14 +921,19 @@ const MachineCard=({machine,session,tick,onStart,onCollect,currentUser,onContact
                 <I n="shirt" s={16}/>Clothes Collected ✓
               </button>
             )}
-            {!isMySession&&isPickup&&(
+            {!isMySession&&isPickup&&hasPhone&&(
+              <button className="btn btn-wa" style={{width:'100%'}} onClick={()=>openWA(session.userPhone,session.userName,session.startTime,session.endTime)}>
+                <I n="wa" s={16}/>WhatsApp {session.userPhone}
+              </button>
+            )}
+            {!isMySession&&isPickup&&!hasPhone&&(
               <button className="btn btn-wa" style={{width:'100%'}} onClick={()=>onContact(session)}>
                 <I n="wa" s={16}/>Notify via WhatsApp
               </button>
             )}
-            {!isMySession&&isPickup&&!session.userPhone&&(
-              <button className="btn btn-ghost btn-sm" style={{width:'100%'}} onClick={()=>onContact(session)}>
-                <I n="msg" s={14}/>Contact User
+            {!isMySession&&isPickup&&(
+              <button className="btn btn-purple" style={{width:'100%'}} onClick={()=>onNotify(session,machine.id)}>
+                <I n="bell" s={16}/>Send Push Notification 🔔
               </button>
             )}
           </div>
@@ -886,7 +993,8 @@ const DashboardPage=({ctx})=>{
             <MachineCard key={m.id} machine={m} session={sessions[m.id]} tick={tick} currentUser={user}
               onStart={()=>setModal({type:'start',machine:m})}
               onCollect={ctx.collectClothes}
-              onContact={(s)=>setModal({type:'contact',session:s,machine:m})}/>
+              onContact={(s)=>setModal({type:'contact',session:s,machine:m})}
+              onNotify={(s,mid)=>ctx.notifyUserDirectly(s,mid)}/>
           ))}
         </div>
       </div>
@@ -924,7 +1032,8 @@ const MachinesPage=({ctx})=>{
           <MachineCard key={m.id} machine={m} session={sessions[m.id]} tick={tick} currentUser={user}
             onStart={()=>setModal({type:'start',machine:m})}
             onCollect={ctx.collectClothes}
-            onContact={(s)=>setModal({type:'contact',session:s,machine:m})}/>
+            onContact={(s)=>setModal({type:'contact',session:s,machine:m})}
+            onNotify={(s,mid)=>ctx.notifyUserDirectly(s,mid)}/>
         ))}
       </div>
     </div>
@@ -1287,8 +1396,11 @@ const ModalRouter=({ctx})=>{
 const StartModal=({ctx})=>{
   const{modal,setModal,startMachine,sessions}=ctx;
   const[dur,setDur]=useState(null);
+  const[manualMin,setManualMin]=useState('');
   const machine=modal.machine;
   const occupied=sessions[machine.id];
+
+  const effectiveDur = dur !== null ? dur : (manualMin && parseInt(manualMin)>0 ? parseInt(manualMin) : null);
 
   if(occupied){
     const secs=timeLeft(occupied.endTime);
@@ -1312,8 +1424,8 @@ const StartModal=({ctx})=>{
   }
 
   const sub=()=>{
-    if(!dur){toast('Please select a duration','error');return;}
-    startMachine(machine.id,machine.name,dur);
+    if(!effectiveDur){toast('Please select a duration','error');return;}
+    startMachine(machine.id,machine.name,effectiveDur);
     setModal(null);
   };
 
@@ -1330,18 +1442,33 @@ const StartModal=({ctx})=>{
         <div className="modal-body">
           <div className="dur-grid">
             {DURATIONS.map(d=>(
-              <div key={d.minutes} className={`dur-btn${dur===d.minutes?' selected':''}`} onClick={()=>setDur(d.minutes)}>{d.label}</div>
+              <div key={d.minutes} className={`dur-btn${dur===d.minutes?' selected':''}`} onClick={()=>{setDur(d.minutes);setManualMin('');}}>{d.label}</div>
             ))}
           </div>
-          {dur&&(
+          <div style={{marginTop:14,display:'flex',alignItems:'center',gap:9}}>
+            <div style={{flex:1,position:'relative'}}>
+              <input
+                className="form-input"
+                type="number"
+                min="1"
+                max="999"
+                placeholder="أو أدخل الوقت يدوياً (بالدقائق)..."
+                value={manualMin}
+                onChange={e=>{setManualMin(e.target.value);setDur(null);}}
+                style={{width:'100%',paddingRight:56}}
+              />
+              <span style={{position:'absolute',right:13,top:'50%',transform:'translateY(-50%)',fontSize:12,color:'var(--muted)',fontWeight:600,pointerEvents:'none'}}>min</span>
+            </div>
+          </div>
+          {effectiveDur&&(
             <div style={{marginTop:13,padding:'11px 15px',background:'#f0fdf4',borderRadius:10,fontSize:13,color:'#15803d',fontWeight:500,display:'flex',alignItems:'center',gap:8}}>
-              <I n="check" s={15}/><span>Selected: <strong>{DURATIONS.find(d=>d.minutes===dur)?.label}</strong> — finishes at {fmt(Date.now()+dur*60000)}</span>
+              <I n="check" s={15}/><span>Selected: <strong>{effectiveDur>=60?`${Math.floor(effectiveDur/60)}h${effectiveDur%60?` ${effectiveDur%60}m`:''}`:effectiveDur+'m'}</strong> — finishes at {fmt(Date.now()+effectiveDur*60000)}</span>
             </div>
           )}
         </div>
         <div className="modal-footer">
           <button className="btn btn-ghost" onClick={()=>setModal(null)}>Cancel</button>
-          <button className="btn btn-green btn-lg" onClick={sub} disabled={!dur}><I n="machine" s={16}/>START MACHINE</button>
+          <button className="btn btn-green btn-lg" onClick={sub} disabled={!effectiveDur}><I n="machine" s={16}/>START MACHINE</button>
         </div>
       </div>
     </div>
@@ -1352,7 +1479,7 @@ const StartModal=({ctx})=>{
 const ContactModal=({ctx})=>{
   const{modal,setModal}=ctx;
   const{session,machine}=modal;
-  const msg=waMsg(session.userName);
+  const msg=waMsg(session.userName, session.startTime, session.endTime);
   const hasPhone=!!session.userPhone;
 
   return(
@@ -1378,7 +1505,7 @@ const ContactModal=({ctx})=>{
           <div className="wa-preview">{msg}</div>
 
           <div style={{marginTop:16,display:'flex',flexDirection:'column',gap:9}}>
-            <button className="btn btn-wa" style={{width:'100%',fontSize:14}} onClick={()=>{openWA(session.userPhone,session.userName);setModal(null);}}>
+            <button className="btn btn-wa" style={{width:'100%',fontSize:14}} onClick={()=>{openWA(session.userPhone,session.userName,session.startTime,session.endTime);setModal(null);}}>
               <I n="wa" s={17}/>{hasPhone?`Open WhatsApp (${session.userPhone})`:'Open WhatsApp (enter number manually)'}
             </button>
             <button className="btn btn-ghost" onClick={()=>setModal(null)} style={{width:'100%'}}>Cancel</button>
